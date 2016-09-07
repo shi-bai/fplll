@@ -185,6 +185,16 @@ public:
 
   long nodes;
 
+  unsigned long input_block_size;
+  unsigned long num_svp;
+  unsigned long num_dsvp;
+  Float best_so_far;
+  double time_so_far;
+  double cputime_svp;
+  double cputime_others;
+  vector<int> svp_bs_count;
+  void print_after_svp(bool dual, int max_row, int block_size);
+  
 private:
   void print_tour(const int loop, int min_row, int max_row);
   void print_params(const BKZParam &param, ostream &out);
