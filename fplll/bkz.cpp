@@ -102,12 +102,13 @@ bool BKZReduction<FT>::svp_preprocessing(int kappa, int block_size, const BKZPar
   FPLLL_DEBUG_CHECK(param.strategies.size() > block_size);
 
   int lll_start = (param.flags & BKZ_BOUNDED_LLL) ? kappa : 0;
-  double start_time = cputime();
+  double start_time = cputime();/* TIMING */
   if (!lll_obj.lll(lll_start, lll_start, kappa + block_size))
   {
     throw std::runtime_error(RED_STATUS_STR[lll_obj.status]);
   }
-  cputime_others += (cputime() - start_time);
+  cputime_others += (cputime() - start_time);/* TIMING */
+  cputime_others_lll += (cputime() - start_time);/* TIMING */
   if (lll_obj.n_swaps > 0)
     clean = false;
 
@@ -126,6 +127,8 @@ template <class FT>
 bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vector<FT> &solution)
 {
   // Is it already in the basis ?
+
+  double start_time;/* TIMING */
   int nz_vectors = 0, i_vector = -1;
   for (int i = 0; i < block_size; i++)
   {
@@ -142,13 +145,17 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
   if (nz_vectors == 1)
   {
     // Yes, it is another vector
+    start_time = cputime();/* TIMING */
     FPLLL_DEBUG_CHECK(i_vector != -1 && i_vector != 0);
     m.move_row(kappa + i_vector, kappa);
     if (!lll_obj.size_reduction(kappa, kappa + i_vector + 1))
       throw lll_obj.status;
+    cputime_others += (cputime() - start_time);/* TIMING */
+    cputime_others_lll += (cputime() - start_time);/* TIMING */
   }
   else
   {
+    start_time = cputime();/* TIMING */
     // No, general case
     int d = m.d;
     m.create_row();
@@ -164,6 +171,8 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
     FPLLL_DEBUG_CHECK(m.b[kappa + block_size].is_zero());
     m.move_row(kappa + block_size, d);
     m.remove_last_row();
+    cputime_others += (cputime() - start_time);/* TIMING */
+    cputime_others_lll += (cputime() - start_time);/* TIMING */
   }
   return false;
 }
@@ -171,6 +180,7 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
 template <class FT>
 bool BKZReduction<FT>::dsvp_postprocessing(int kappa, int block_size, const vector<FT> &solution)
 {
+  double start_time;/* TIMING */
   vector<FT> x = solution;
 
   int d = block_size;
@@ -187,7 +197,7 @@ bool BKZReduction<FT>::dsvp_postprocessing(int kappa, int block_size, const vect
       }
     }
   }
-
+  start_time = cputime();/* TIMING */
   // tree based gcd computation on x, performing operations also on b
   int off = 1;
   int k;
@@ -220,12 +230,14 @@ bool BKZReduction<FT>::dsvp_postprocessing(int kappa, int block_size, const vect
     }
     off *= 2;
   }
-
   m.row_op_end(kappa, kappa + d);
   if (!lll_obj.lll(kappa, kappa, kappa + d))
   {
     return set_status(lll_obj.status);
   }
+  cputime_others += (cputime() - start_time);/* TIMING */
+  cputime_others_lll += (cputime() - start_time);/* TIMING */
+
   return false;
 }
 
@@ -243,12 +255,13 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
   // already in the basis). if size reduction is not called,
   // old_first might be incorrect (e.g. close to 0) and the function
   // will return an incorrect clean flag
-  double start_time = cputime();
+  double start_time = cputime();/* TIMING */
   if (!lll_obj.size_reduction(0, first + 1))
   {
     throw std::runtime_error(RED_STATUS_STR[lll_obj.status]);
   }
-  cputime_others += (cputime() - start_time);  
+  cputime_others += (cputime() - start_time);/* TIMING */
+  cputime_others_lll += (cputime() - start_time);/* TIMING */
   FT old_first;
   long old_first_expo;
   old_first = FT(m.get_r_exp(first, first, old_first_expo));
@@ -258,13 +271,14 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
 
   while (remaining_probability > 1. - par.min_success_probability)
   {
-    start_time = cputime();
+    start_time = cputime();/* TIMING */
     if (rerandomize)
     {
       rerandomize_block(kappa + 1, kappa + block_size, par.rerandomization_density);
     }
-    cputime_others += (cputime() - start_time);
-    svp_preprocessing(kappa, block_size, par);
+    cputime_others += (cputime() - start_time);/* TIMING */
+    cputime_others_random += (cputime() - start_time);/* TIMING */
+    svp_preprocessing(kappa, block_size, par);/* TIMING INSIDE */
 
     long max_dist_expo;
     FT max_dist = m.get_r_exp(first, first, max_dist_expo);
@@ -291,13 +305,13 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
                        vector<enumxt>(), pruning.coefficients, dual);
     nodes += enum_obj.get_nodes();
     cputime_svp += (cputime() - start_time);
-    start_time = cputime();    
+
     if (!sol_coord.empty())
     {
       if (dual)
-        dsvp_postprocessing(kappa, block_size, sol_coord);
+        dsvp_postprocessing(kappa, block_size, sol_coord);/* TIMING INSIDE */
       else
-        svp_postprocessing(kappa, block_size, sol_coord);
+        svp_postprocessing(kappa, block_size, sol_coord);/* TIMING INSIDE */
 
       rerandomize = false;
     }
@@ -305,7 +319,6 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
     {
       rerandomize = true;
     }
-    cputime_others += (cputime() - start_time);
     remaining_probability *= (1 - pruning.probability);
   }
   start_time = cputime();
@@ -314,6 +327,7 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
     throw std::runtime_error(RED_STATUS_STR[lll_obj.status]);
   }
   cputime_others += (cputime() - start_time);
+  cputime_others_lll += (cputime() - start_time);
   long new_first_expo;
   FT new_first = m.get_r_exp(first, first, new_first_expo);
   new_first.mul_2si(new_first, new_first_expo - old_first_expo);
@@ -525,7 +539,10 @@ template <class FT> bool BKZReduction<FT>::bkz()
     cerr << endl;
   }
   cputime_start = cputime();
-
+  cputime_svp = 0.0;
+  cputime_others = 0.0;  
+  cputime_others_lll = 0.0;  
+  cputime_others_random = 0.0;  
   m.discover_all_rows();
 
   if (sld)
@@ -668,11 +685,15 @@ template <class FT> void BKZReduction<FT>::print_after_svp(bool dual, int max_ro
   if (tot > time_so_far) {
     time_so_far = time_so_far +60;
     cerr << "# nsvp " << std::setw( 5 ) << (num_svp+num_dsvp) <<" ("
-         << svp_bs_count[input_block_size-1] << ") " <<"t_tot "    
+         << svp_bs_count[input_block_size-1] << ") " <<"t_tot " 
          << std::fixed << std::setw(6) << std::setprecision(2)
          << tot;
     cerr << " t_aux " << std::fixed << std::setw(6) << std::setprecision(2)
          << cputime_others * 0.001;
+    cerr << " ( " << std::fixed << std::setw(4) << std::setprecision(2)
+         << cputime_others_lll * 0.001;
+    cerr << " , " << std::fixed << std::setw(4) << std::setprecision(2)
+         << cputime_others_random * 0.001 << " )";
     cerr << " t_svp " << std::fixed << std::setw(6) << std::setprecision(2)
          << cputime_svp * 0.001;
     cerr << " lg " << std::setw(5) << std::setprecision(2)
@@ -683,13 +704,17 @@ template <class FT> void BKZReduction<FT>::print_after_svp(bool dual, int max_ro
     //cerr << svp_bs_count << endl;
   }
   
-  if (tot > 3600 * 3) {
+  if (tot > 3600 * 30) {
     cerr << "# nsvp_last " << std::setw( 5 ) << (num_svp+num_dsvp) <<" ("
          << svp_bs_count[input_block_size-1] << ") " <<"t_tot "    
          << std::fixed << std::setw(6) << std::setprecision(2)
          << tot;
     cerr << " t_aux " << std::fixed << std::setw(6) << std::setprecision(2)
          << cputime_others * 0.001;
+    cerr << " ( " << std::fixed << std::setw(4) << std::setprecision(2)
+         << cputime_others_lll * 0.001;
+    cerr << " , " << std::fixed << std::setw(4) << std::setprecision(2)
+         << cputime_others_random * 0.001 << " )";
     cerr << " t_svp " << std::fixed << std::setw(6) << std::setprecision(2)
          << cputime_svp * 0.001;
     cerr << " lg " << std::setw(5) << std::setprecision(2)
