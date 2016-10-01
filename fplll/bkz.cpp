@@ -109,6 +109,7 @@ bool BKZReduction<FT>::svp_preprocessing(int kappa, int block_size, const BKZPar
   }
   cputime_others += (cputime() - start_time);/* TIMING */
   cputime_others_lll += (cputime() - start_time);/* TIMING */
+  cputime_others_lll_svppre += (cputime() - start_time);/* TIMING */
   if (lll_obj.n_swaps > 0)
     clean = false;
 
@@ -152,6 +153,7 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
       throw lll_obj.status;
     cputime_others += (cputime() - start_time);/* TIMING */
     cputime_others_lll += (cputime() - start_time);/* TIMING */
+    cputime_others_lll_svppost += (cputime() - start_time);/* TIMING */
   }
   else
   {
@@ -541,7 +543,12 @@ template <class FT> bool BKZReduction<FT>::bkz()
   cputime_start = cputime();
   cputime_svp = 0.0;
   cputime_others = 0.0;  
-  cputime_others_lll = 0.0;  
+  cputime_others_lll = 0.0;
+  cputime_others_lll_svppre = 0.0;
+  cputime_others_lll_svppost = 0.0;  
+  cputime_others_lll_svpred1 = 0.0;
+  cputime_others_lll_svpred2 = 0.0;
+  
   cputime_others_random = 0.0;  
   m.discover_all_rows();
 
