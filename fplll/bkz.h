@@ -193,6 +193,9 @@ public:
   double cputime_svp;
   double cputime_others;
   double cputime_others_lll;
+  double cputime_others_lll_svppre;
+  double cputime_others_lll_svppost;
+  double cputime_others_lll_svpred1; 
   double cputime_others_random;
   vector<int> svp_bs_count;
   void print_after_svp(bool dual, int max_row, int block_size);
