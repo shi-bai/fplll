@@ -109,6 +109,7 @@ bool BKZReduction<FT>::svp_preprocessing(int kappa, int block_size, const BKZPar
   }
   cputime_others += (cputime() - start_time);/* TIMING */
   cputime_others_lll += (cputime() - start_time);/* TIMING */
+  cputime_others_lll_svppre += (cputime() - start_time);/* TIMING */
   if (lll_obj.n_swaps > 0)
     clean = false;
 
@@ -152,6 +153,7 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
       throw lll_obj.status;
     cputime_others += (cputime() - start_time);/* TIMING */
     cputime_others_lll += (cputime() - start_time);/* TIMING */
+    cputime_others_lll_svppost += (cputime() - start_time);/* TIMING */
   }
   else
   {
@@ -237,7 +239,6 @@ bool BKZReduction<FT>::dsvp_postprocessing(int kappa, int block_size, const vect
   }
   cputime_others += (cputime() - start_time);/* TIMING */
   cputime_others_lll += (cputime() - start_time);/* TIMING */
-
   return false;
 }
 
@@ -262,6 +263,8 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
   }
   cputime_others += (cputime() - start_time);/* TIMING */
   cputime_others_lll += (cputime() - start_time);/* TIMING */
+  cputime_others_lll_svpred1 += (cputime() - start_time);/* TIMING */
+
   FT old_first;
   long old_first_expo;
   old_first = FT(m.get_r_exp(first, first, old_first_expo));
@@ -328,6 +331,7 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
   }
   cputime_others += (cputime() - start_time);
   cputime_others_lll += (cputime() - start_time);
+  cputime_others_lll_svpred1 += (cputime() - start_time);/* TIMING */
   long new_first_expo;
   FT new_first = m.get_r_exp(first, first, new_first_expo);
   new_first.mul_2si(new_first, new_first_expo - old_first_expo);
@@ -541,7 +545,11 @@ template <class FT> bool BKZReduction<FT>::bkz()
   cputime_start = cputime();
   cputime_svp = 0.0;
   cputime_others = 0.0;  
-  cputime_others_lll = 0.0;  
+  cputime_others_lll = 0.0;
+  cputime_others_lll_svppre = 0.0;
+  cputime_others_lll_svppost = 0.0;  
+  cputime_others_lll_svpred1 = 0.0;
+  
   cputime_others_random = 0.0;  
   m.discover_all_rows();
 
@@ -690,9 +698,15 @@ template <class FT> void BKZReduction<FT>::print_after_svp(bool dual, int max_ro
          << tot;
     cerr << " t_aux " << std::fixed << std::setw(6) << std::setprecision(2)
          << cputime_others * 0.001;
-    cerr << " ( " << std::fixed << std::setw(4) << std::setprecision(2)
+    cerr << " ( lll " << std::fixed << std::setw(4) << std::setprecision(2)
          << cputime_others_lll * 0.001;
-    cerr << " , " << std::fixed << std::setw(4) << std::setprecision(2)
+    cerr << " , lll_pre " << std::fixed << std::setw(4) << std::setprecision(2)
+         << cputime_others_lll_svppre * 0.001;
+    cerr << " , lll_post " << std::fixed << std::setw(4) << std::setprecision(2)
+         << cputime_others_lll_svppost * 0.001;
+    cerr << " , lll_red " << std::fixed << std::setw(4) << std::setprecision(2)
+         << cputime_others_lll_svpred1 * 0.001;
+    cerr << " , other " << std::fixed << std::setw(4) << std::setprecision(2)
          << cputime_others_random * 0.001 << " )";
     cerr << " t_svp " << std::fixed << std::setw(6) << std::setprecision(2)
          << cputime_svp * 0.001;
