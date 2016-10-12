@@ -691,7 +691,7 @@ template <class FT> void BKZReduction<FT>::print_after_svp(bool dual, int max_ro
   double tot = (cputime() - cputime_start) * 0.001;
 
   if (tot > time_so_far) {
-    time_so_far = time_so_far + 1;
+    time_so_far = time_so_far +60;
     cerr << "# nsvp " << std::setw( 5 ) << (num_svp+num_dsvp) <<" ("
          << svp_bs_count[input_block_size-1] << ") " <<"t_tot " 
          << std::fixed << std::setw(6) << std::setprecision(2)
