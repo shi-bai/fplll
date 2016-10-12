@@ -549,8 +549,8 @@ template <class FT> bool BKZReduction<FT>::bkz()
   cputime_others_lll_svppre = 0.0;
   cputime_others_lll_svppost = 0.0;  
   cputime_others_lll_svpred1 = 0.0;
-  
   cputime_others_random = 0.0;  
+
   m.discover_all_rows();
 
   if (sld)
