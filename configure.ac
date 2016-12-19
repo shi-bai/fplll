@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT(fplll, 5.0.3rc0)
+AC_INIT(fplll, 5.1.0)
 AC_CONFIG_SRCDIR([fplll/fplll.cpp])
 
 # cf http://comments.gmane.org/gmane.comp.sysutils.autoconf.general/15737
@@ -16,7 +16,7 @@ FPLLL_VERSION_NUMBER=`expr $FPLLL_MAJOR_VERSION \* 1000000 + $FPLLL_MINOR_VERSIO
 
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([foreign subdir-objects])
-AM_SILENT_RULES([yes])
+m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
 AC_CONFIG_HEADER(config.h)
 
@@ -38,8 +38,8 @@ LT_INIT
 # 3. If interfaces were removed (breaks backward compatibility): increment
 #    current, and set both revision and age to zero.
 
-FPLLL_LT_CURRENT=2
-FPLLL_LT_REVISION=2
+FPLLL_LT_CURRENT=3
+FPLLL_LT_REVISION=0
 FPLLL_LT_AGE=0
 
 AC_SUBST(FPLLL_LT_CURRENT)
@@ -82,21 +82,20 @@ AC_CHECK_LIB(mpfr, mpfr_add, , [AC_MSG_ERROR(
 AC_CHECK_LIB(mpfr, mpfr_fms, , [AC_MSG_ERROR(
 [MPFR version too old, need >= 2.3.0, see http://www.mpfr.org])])
 
-AC_ARG_WITH(qd,
-   AS_HELP_STRING([--with-qd=@<:@=DIR@:>@], [quaddouble install directory]), [
-      CPPFLAGS="$CPPFLAGS -I$withval/include"
-       LDFLAGS="$LDFLAGS -L$withval/lib"
-       qd_lib_path="$withval/lib"
-   ])
+AC_ARG_WITH(qd, AS_HELP_STRING([--with-qd=@<:@=DIR@:>@], [quaddouble install directory]),)
 
-AC_CHECK_HEADER(qd/dd_real.h,
-    have_libqd="yes",
-    have_libqd="no")
+AS_IF([test "x$with_qd" != "xno"], [
+       CPPFLAGS="$CPPFLAGS -I$with_qd/include"
+       LDFLAGS="$LDFLAGS -L$with_qd/lib"
+       qd_lib_path="$with_qd/lib"
+       AC_CHECK_HEADER(qd/dd_real.h,
+           have_libqd="yes",
+           have_libqd="no")
+      ])
 
-if test "x${have_libqd}" = "xyes"; then
-   LIBQD_LIBADD="-lqd"
-   AC_DEFINE([FPLLL_WITH_QD], [1], [defined when libqd-dev is available])
-fi
+AS_IF([test "x${have_libqd}" = "xyes"], [
+    LIBQD_LIBADD="-lqd"
+    AC_DEFINE([FPLLL_WITH_QD], [1], [defined when libqd-dev is available])])
 
 AC_SUBST(LIBQD_LIBADD)
 
