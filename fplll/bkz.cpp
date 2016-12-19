@@ -132,28 +132,19 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
   // Is it already in the basis ?
   double start_time;/* TIMING */
   int nz_vectors = 0, i_vector = -1;
-  i_vector = block_size-1;
-  while (nz_vectors == 0) {
-    if (fabs(solution[i_vector].get_d()) != 0)
-      nz_vectors = 1;
+  i_vector = block_size;
+  while ((nz_vectors == 0)&&(i_vector>0)){
     i_vector--;
+    if (fabs(solution[i_vector].get_d()) == 1)
+      nz_vectors = 1;
   }
 
-  //cout << "solution " << solution << endl;
-  
   if (nz_vectors == 1)
   {
-
-    //cout << " initial basis " << endl;
-    //cout << m.b << endl;
-    
-    i_vector++;
-    //cout << " position " << i_vector << ", kappa " << kappa << endl;
-    
-    // Yes, it is another vector
+    cout << solution << endl;
+    cerr << "Yes!!!! " << i_vector << ": " << solution[i_vector] << endl;
     start_time = cputime();/* TIMING */
-    FPLLL_DEBUG_CHECK(i_vector != -1 && i_vector != 0);
-
+    // No, general case
     int d = m.d;
     m.create_row();
     m.row_op_begin(d, d + 1);
@@ -161,41 +152,20 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
     {
       m.row_addmul(d, kappa + i, solution[i]);
     }
-
     m.row_op_end(d, d + 1);
-    //cout << " row kapp+i_vector " << m.b[kappa+i_vector] << endl;
-    //cout << " new row kapp+i_vector " << m.b[kappa+i_vector] << endl;
-    //cout << " current basis " << endl;
-    //cout << m.b << endl;
-    
-    for (int j = 0; j < m.b.get_cols(); j++)
-    {
-      m.b[kappa+i_vector][j] = m.b[d][j];
-    }
+    m.move_row(d, kappa);
+    m.move_row(kappa+i_vector+1,d);
     m.remove_last_row();
-
-    
-    //if (!lll_obj.size_reduction(kappa, kappa + block_size ))
-    // throw lll_obj.status;
-    if (!lll_obj.lll(kappa, kappa, kappa + block_size + 1))
+    if (!lll_obj.size_reduction(kappa, kappa + block_size))
       throw lll_obj.status;
-
-    //cout << " after " << endl;
-    //cout << m.b << endl;
-    
-    
-    //m.move_row(kappa + i_vector, d);
-    
+    FPLLL_DEBUG_CHECK(m.b[kappa + block_size].is_zero());
     cputime_others += (cputime() - start_time);/* TIMING */
     cputime_others_lll += (cputime() - start_time);/* TIMING */
     cputime_others_lll_svppost += (cputime() - start_time);/* TIMING */
   }
   else
   {
-
-    cout << "error " << endl;
-    exit(1);
-    
+    cerr << "No!!!! " << i_vector << ": " << solution[i_vector] << endl;
     start_time = cputime();/* TIMING */
     // No, general case
     int d = m.d;
@@ -217,6 +187,84 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
     cputime_others_lll_svppost += (cputime() - start_time);/* TIMING */
   }
   return false;
+
+  
+  // if (nz_vectors == 1)
+  // {
+
+  //   //cout << " initial basis " << endl;
+  //   //cout << m.b << endl;
+    
+  //   i_vector++;
+  //   //cout << " position " << i_vector << ", kappa " << kappa << endl;
+    
+  //   // Yes, it is another vector
+  //   start_time = cputime();/* TIMING */
+  //   FPLLL_DEBUG_CHECK(i_vector != -1 && i_vector != 0);
+
+  //   int d = m.d;
+  //   m.create_row();
+  //   m.row_op_begin(d, d + 1);
+  //   for (int i = 0; i < block_size; i++)
+  //   {
+  //     m.row_addmul(d, kappa + i, solution[i]);
+  //   }
+
+  //   m.row_op_end(d, d + 1);
+  //   //cout << " row kapp+i_vector " << m.b[kappa+i_vector] << endl;
+  //   //cout << " new row kapp+i_vector " << m.b[kappa+i_vector] << endl;
+  //   //cout << " current basis " << endl;
+  //   //cout << m.b << endl;
+    
+  //   for (int j = 0; j < m.b.get_cols(); j++)
+  //   {
+  //     m.b[kappa+i_vector][j] = m.b[d][j];
+  //   }
+  //   m.remove_last_row();
+
+    
+  //   //if (!lll_obj.size_reduction(kappa, kappa + block_size ))
+  //   // throw lll_obj.status;
+  //   if (!lll_obj.lll(kappa, kappa, kappa + block_size + 1))
+  //     throw lll_obj.status;
+
+  //   //cout << " after " << endl;
+  //   //cout << m.b << endl;
+    
+    
+  //   //m.move_row(kappa + i_vector, d);
+    
+  //   cputime_others += (cputime() - start_time);/* TIMING */
+  //   cputime_others_lll += (cputime() - start_time);/* TIMING */
+  //   cputime_others_lll_svppost += (cputime() - start_time);/* TIMING */
+  // }
+  // else
+  // {
+
+  //   cout << "error " << endl;
+  //   exit(1);
+    
+  //   start_time = cputime();/* TIMING */
+  //   // No, general case
+  //   int d = m.d;
+  //   m.create_row();
+  //   m.row_op_begin(d, d + 1);
+  //   for (int i = 0; i < block_size; i++)
+  //   {
+  //     m.row_addmul(d, kappa + i, solution[i]);
+  //   }
+  //   m.row_op_end(d, d + 1);
+  //   m.move_row(d, kappa);
+  //   if (!lll_obj.lll(kappa, kappa, kappa + block_size + 1))
+  //     throw lll_obj.status;
+  //   FPLLL_DEBUG_CHECK(m.b[kappa + block_size].is_zero());
+  //   m.move_row(kappa + block_size, d);
+  //   m.remove_last_row();
+  //   cputime_others += (cputime() - start_time);/* TIMING */
+  //   cputime_others_lll += (cputime() - start_time);/* TIMING */
+  //   cputime_others_lll_svppost += (cputime() - start_time);/* TIMING */
+  // }
+  // return false;
 }
 
 template <class FT>
