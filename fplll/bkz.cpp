@@ -176,6 +176,7 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
     m.remove_last_row();
     cputime_others += (cputime() - start_time);/* TIMING */
     cputime_others_lll += (cputime() - start_time);/* TIMING */
+    cputime_others_lll_svppost += (cputime() - start_time);/* TIMING */
   }
   return false;
 }
@@ -240,6 +241,7 @@ bool BKZReduction<FT>::dsvp_postprocessing(int kappa, int block_size, const vect
   }
   cputime_others += (cputime() - start_time);/* TIMING */
   cputime_others_lll += (cputime() - start_time);/* TIMING */
+  cputime_others_lll_svppost += (cputime() - start_time);/* TIMING */
   return false;
 }
 
@@ -691,7 +693,7 @@ template <class FT> void BKZReduction<FT>::print_after_svp(bool dual, int max_ro
   double tot = (cputime() - cputime_start) * 0.001;
 
   if (tot > time_so_far) {
-    time_so_far = time_so_far +60;
+    time_so_far = time_so_far + 1;
     cerr << "# nsvp " << std::setw( 5 ) << (num_svp+num_dsvp) <<" ("
          << svp_bs_count[input_block_size-1] << ") " <<"t_tot " 
          << std::fixed << std::setw(6) << std::setprecision(2)
