@@ -49,6 +49,9 @@ public:
   int zeros;
   int n_swaps;
 
+  FT delta, eta, swap_threshold;
+
+  
 private:
   bool babai(int kappa, int ncols);
   inline bool early_reduction(int start);
@@ -56,7 +59,6 @@ private:
   inline bool set_status(int new_status);
 
   MatGSO<ZT, FT> &m;
-  FT delta, eta, swap_threshold;
 
   bool enable_early_red;
   bool siegel;
