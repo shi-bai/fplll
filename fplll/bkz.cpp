@@ -141,8 +141,6 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
 
   if (nz_vectors == 1)
   {
-    cout << solution << endl;
-    cerr << "Yes!!!! " << i_vector << ": " << solution[i_vector] << endl;
     start_time = cputime();/* TIMING */
     // No, general case
     int d = m.d;
@@ -165,7 +163,8 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
   }
   else
   {
-    cerr << "No!!!! " << i_vector << ": " << solution[i_vector] << endl;
+    cout << " bad case" << endl;
+    
     start_time = cputime();/* TIMING */
     // No, general case
     int d = m.d;
