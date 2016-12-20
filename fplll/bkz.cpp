@@ -126,7 +126,7 @@ bool BKZReduction<FT>::svp_preprocessing(int kappa, int block_size, const BKZPar
 }
 
 
-#if 0
+#if 1
 template <class FT>
 bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vector<FT> &solution)
 {
@@ -152,8 +152,8 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
     start_time = cputime();/* TIMING */
     FPLLL_DEBUG_CHECK(i_vector != -1 && i_vector != 0);
     m.move_row(kappa + i_vector, kappa);
-    //if (!lll_obj.size_reduction(kappa, kappa + i_vector + 1))
-    //throw lll_obj.status;
+    if (!lll_obj.size_reduction(kappa, kappa + i_vector + 1))
+    throw lll_obj.status;
     cputime_others += (cputime() - start_time);/* TIMING */
     cputime_others_lll += (cputime() - start_time);/* TIMING */
     cputime_others_lll_svppost += (cputime() - start_time);/* TIMING */
@@ -174,8 +174,8 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
     m.move_row(d, kappa);
     m.move_row(kappa+i_vector+1, d);
     m.remove_last_row();
-    //    if (!lll_obj.size_reduction(kappa, kappa + block_size))
-    //throw lll_obj.status;
+       if (!lll_obj.size_reduction(kappa, kappa + block_size))
+    throw lll_obj.status;
     FPLLL_DEBUG_CHECK(m.b[kappa + block_size].is_zero());
     cputime_others += (cputime() - start_time);/* TIMING */
     cputime_others_lll += (cputime() - start_time);/* TIMING */
