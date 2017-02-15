@@ -412,6 +412,13 @@ public:
    */
   const bool row_op_force_long;
 
+  void print_mu(int, int);
+  void print_mu_matrix();
+  void check_mu_matrix();
+  void print_r_matrix();
+  void check_r_matrix();
+  void check_g_matrix();
+
 private:
   /* Allocates matrices and arrays whose size depends on d (all but tmp_col_expo).
      When enable_int_gram=false, initializes bf. */

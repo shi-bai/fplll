@@ -610,6 +610,140 @@ void adjust_radius_to_gh_bound(FT &max_dist, long max_dist_expo, int block_size,
   }
 }
 
+
+#if 1
+template<class ZT, class FT>
+inline void MatGSO<ZT, FT>::print_mu(int i, int j) {
+  FPLLL_DEBUG_CHECK(i >= 0 && i < n_known_rows && j >= 0 && j < i
+                    && j < gsoValidCols[i] && !inRowOpRange(i));
+  FT f;
+  f = mu(i, j);
+  if (enable_row_expo) {
+    f.mul_2si(f, row_expo[i] - row_expo[j]);
+  }
+  cout << "mu [" << i << ", " << j << "]=" <<  f << endl;
+}
+
+template<class ZT, class FT>
+inline void MatGSO<ZT, FT>::print_mu_matrix() {
+  FT f;
+  /*
+    for (int j = 0; j < n_known_rows; j++) {
+    for (int k = 0; k <= j; k++) {
+    getMu(f, j, k);
+    cout << " (" << j << "," << k << "| " << f.get_d() << ") ";
+    }
+    cout << endl;
+    }
+  */
+
+  for (int j = 0; j < n_known_rows; j++) {
+    get_mu(f, j, 0);
+    cout << " (" << j << ",0" "): " << f.get_d() << "; ";
+    cout << endl;
+  }
+  cout << endl;  
+}
+
+template<class ZT, class FT>
+void MatGSO<ZT, FT>::check_mu_matrix() {
+  FT f;
+  ZT z2, z3;
+  double fd, fd2;
+  int exitflag = 0;
+  for (int j = 0; j < n_known_rows; j++) {
+    get_mu(f, j, 0);
+    fd = f.get_d();
+    dot_product(z2, b[j], b[0], n_known_cols);
+    dot_product(z3, b[0], b[0], n_known_cols);
+    double f2 = z2.get_d();
+    double f3 = z3.get_d();
+    cout << " (" << j << ",0" "): " << fd << "; " << f2/f3 << endl;
+    if ((fd != f2/f3) && (f2/f3 != 1)) {
+      cout << " ----above" << endl;
+      exitflag = 1;
+    }
+    
+  }
+  ///*
+  if (exitflag) {
+    //cout << b << endl;
+    exit(1);
+  }
+  //*/
+}
+
+
+/** 
+ * output |b_i^*| where b_i^* are the orthogonalized vectors
+ */
+template<class ZT, class FT>
+void MatGSO<ZT, FT>::print_r_matrix() {
+  FT f;
+  cout << "# print_r_matrix " << endl;;
+  for (int j = 0; j < n_known_rows; j++) {
+    get_r(f, j, j);
+    //cout << f << endl;
+    
+    //cout << " (" << j << " " << f.get_d() << ") ";
+    //cout << j << " " << log2(f.get_d())/2.0 ;
+    cout << j << " " << f << " " << endl;
+    
+    
+    //cout << std::fixed << std::setprecision(3) << std::log(f.get_d()) << " ";
+    /*
+      if (f.get_d() < 1) {
+      cout << " ------> [printrmatrix] wrong on " << j << ", " << f.get_d() << endl;
+      exit(1);
+      }
+    */
+  }
+  cout << endl;
+}
+
+
+/** 
+ * output |b_i^*| where b_i^* are the orthogonalized vectors
+ */
+template<class ZT, class FT>
+void MatGSO<ZT, FT>::check_r_matrix() {
+  FT f, f2;
+
+  cout << "  ** checking r: ";
+  for (int j = 0; j < n_known_rows; j++) {
+    get_r(f, j, j);
+    cout << "(" << j << ", " << f << ") ";
+    //cout << b[j] << endl;
+    ///*
+    if (f.get_d() < 1) {
+      cout << " ------> [printrmatrix] wrong on " << j << ", " << f.get_d() << endl;
+      //exit(1);
+    }
+    //*/
+  }
+  cout << endl;
+}
+
+
+template<class ZT, class FT>
+void MatGSO<ZT, FT>::check_g_matrix() {
+  FT gg;
+  ZT zz;
+  cout << "  ** checking gram: " << endl;
+  for (int j = 0; j < n_known_rows; j++) {
+    get_gram(gg, j, j);
+    dot_product(zz, b[j], b[j]);
+    //cout << "(" << j << ", " << gg << ", " << zz << ") ";
+    cout << gg << " ";
+  }
+  cout << endl;
+}
+
+#endif
+
+
+
+
 template class MatGSO<Z_NR<long>, FP_NR<double>>;
 template class MatGSO<Z_NR<double>, FP_NR<double>>;
 template class MatGSO<Z_NR<mpz_t>, FP_NR<double>>;

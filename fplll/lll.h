@@ -72,9 +72,6 @@ public:
   int zeros;
   int n_swaps;
 
-  FT delta, eta, swap_threshold;
-
-  
 private:
   /**
      @brief Size reduction.
@@ -91,6 +88,7 @@ private:
   inline bool set_status(int new_status);
 
   MatGSO<ZT, FT> &m;
+  FT delta, eta, swap_threshold;
 
   bool enable_early_red;
   bool siegel;
@@ -109,6 +107,9 @@ template <class ZT, class FT>
 inline bool LLLReduction<ZT, FT>::size_reduction(int kappa_min, int kappa_end,
                                                  int size_reduction_start)
 {
+  extend_vect(babai_mu, kappa_end);
+  extend_vect(babai_expo, kappa_end);
+
   if (kappa_end == -1)
     kappa_end = m.d;
   for (int k = kappa_min; k < kappa_end; k++)
