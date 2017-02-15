@@ -90,7 +90,7 @@ const Pruning &BKZReduction<FT>::get_pruning(int kappa, int block_size, const BK
   FT max_dist    = m.get_r_exp(kappa, kappa, max_dist_expo);
   FT gh_max_dist = max_dist;
   FT root_det    = m.get_root_det(kappa, kappa + block_size);
-  gaussian_heuristic(gh_max_dist, max_dist_expo, block_size, root_det, 1.0);
+  adjust_radius_to_gh_bound(gh_max_dist, max_dist_expo, block_size, root_det, 1.0);
   return strat.get_pruning(max_dist.get_d() * pow(2, max_dist_expo),
                            gh_max_dist.get_d() * pow(2, max_dist_expo));
 }
@@ -103,8 +103,7 @@ bool BKZReduction<FT>::svp_preprocessing(int kappa, int block_size, const BKZPar
   FPLLL_DEBUG_CHECK(param.strategies.size() > block_size);
 
   int lll_start = (param.flags & BKZ_BOUNDED_LLL) ? kappa : 0;
-  double start_time = cputime();/* TIMING */
-  if (!lll_obj.lll(lll_start, lll_start, kappa + block_size))
+  if (!lll_obj.lll(lll_start, lll_start, kappa + block_size, 0))
   {
     throw std::runtime_error(RED_STATUS_STR[lll_obj.status]);
   }
@@ -215,7 +214,7 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
   // Is it already in the basis ?
   double start_time;/* TIMING */
   int nz_vectors = 0, i_vector = -1;
-  for (int i = 0; i < block_size; i++)
+  for (int i = block_size - 1; i >= 0; i--)
   {
     if (!solution[i].is_zero())
     {
@@ -224,6 +223,8 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
         i_vector = i;
     }
   }
+  // nz_vectors is the number of nonzero coordinates
+  // i_vector is the largest index for a \pm 1 coordinate
 
   FPLLL_DEBUG_CHECK(nz_vectors > 0);
 
@@ -233,7 +234,25 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
     start_time = cputime();/* TIMING */
     FPLLL_DEBUG_CHECK(i_vector != -1 && i_vector != 0);
     m.move_row(kappa + i_vector, kappa);
-    if (!lll_obj.size_reduction(kappa, kappa + i_vector + 1))
+    if (!lll_obj.lll(0, kappa, kappa + 1, 0))
+      throw lll_obj.status;
+  }
+  else if (i_vector != -1)
+  {
+    // No, but one coordinate is equal to \pm 1, making
+    // linear dependency easy to fix too.
+    int d = m.d;
+    m.create_row();
+    m.row_op_begin(d, d + 1);
+    for (int i = 0; i < block_size; i++)
+    {
+      m.row_addmul(d, kappa + i, solution[i]);
+    }
+    m.row_op_end(d, d + 1);
+    m.move_row(d, kappa);
+    m.move_row(kappa + i_vector + 1, d);
+    m.remove_last_row();
+    if (!lll_obj.lll(0, kappa, kappa + 1, 0))
       throw lll_obj.status;
     cputime_others += (cputime() - start_time);/* TIMING */
     cputime_others_lll += (cputime() - start_time);/* TIMING */
@@ -252,7 +271,7 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
     }
     m.row_op_end(d, d + 1);
     m.move_row(d, kappa);
-    if (!lll_obj.lll(kappa, kappa, kappa + block_size + 1))
+    if (!lll_obj.lll(0, kappa, kappa + block_size + 1, 0))
       throw lll_obj.status;
     FPLLL_DEBUG_CHECK(m.b[kappa + block_size].is_zero());
     m.move_row(kappa + block_size, d);
@@ -321,7 +340,7 @@ bool BKZReduction<FT>::dsvp_postprocessing(int kappa, int block_size, const vect
     off *= 2;
   }
   m.row_op_end(kappa, kappa + d);
-  if (!lll_obj.lll(kappa, kappa, kappa + d))
+  if (!lll_obj.lll(kappa, kappa, kappa + d, 0))
   {
     return set_status(lll_obj.status);
   }
@@ -344,8 +363,7 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
   // already in the basis). if size reduction is not called,
   // old_first might be incorrect (e.g. close to 0) and the function
   // will return an incorrect clean flag
-  double start_time = cputime();/* TIMING */
-  if (!lll_obj.size_reduction(0, first + 1))
+  if (!lll_obj.size_reduction(0, first + 1, 0))
   {
     throw std::runtime_error(RED_STATUS_STR[lll_obj.status]);
   }
@@ -383,14 +401,15 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
     if ((par.flags & BKZ_GH_BND) && block_size > 30)
     {
       FT root_det = m.get_root_det(kappa, kappa + block_size);
-      gaussian_heuristic(max_dist, max_dist_expo, block_size, root_det, par.gh_factor);
+      adjust_radius_to_gh_bound(max_dist, max_dist_expo, block_size, root_det, par.gh_factor);
     }
 
     start_time = cputime();
     const Pruning &pruning = get_pruning(kappa, block_size, par);
 
-    vector<FT> &sol_coord = evaluator.sol_coord;
-    sol_coord.clear();
+    FPLLL_DEBUG_CHECK(pruning.metric == PRUNER_METRIC_PROBABILITY_OF_SHORTEST)
+
+    evaluator.solutions.clear();
     Enumeration<FT> enum_obj(m, evaluator);
     enum_obj.enumerate(kappa, kappa + block_size, max_dist, max_dist_expo, vector<FT>(),
                        vector<enumxt>(), pruning.coefficients, dual);
@@ -399,12 +418,12 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
 
     print_after_svp (0, m.d, block_size);
 
-    if (!sol_coord.empty())
+    if (!evaluator.empty())
     {
       if (dual)
-        dsvp_postprocessing(kappa, block_size, sol_coord);/* TIMING INSIDE */
+        dsvp_postprocessing(kappa, block_size, evaluator.begin()->second);
       else
-        svp_postprocessing(kappa, block_size, sol_coord);/* TIMING INSIDE */
+        svp_postprocessing(kappa, block_size, evaluator.begin()->second);
 
       rerandomize = false;
     }
@@ -412,11 +431,10 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
     {
       rerandomize = true;
     }
-    remaining_probability *= (1 - pruning.probability);
-
+    remaining_probability *= (1 - pruning.expectation);
   }
-  start_time = cputime();
-  if (!lll_obj.size_reduction(0, first + 1))
+
+  if (!lll_obj.size_reduction(0, first + 1, 0))
   {
     throw std::runtime_error(RED_STATUS_STR[lll_obj.status]);
   }
@@ -652,10 +670,10 @@ template <class FT> bool BKZReduction<FT>::bkz()
   // svp_reduction calls size_reduction, which needs to be preceeded by a
   // call to lll lower blocks to avoid seg faults
   if (sd)
-    lll_obj.lll(0, 0, num_rows);
+    lll_obj.lll(0, 0, num_rows, 0);
 
-  int kappa_max;
-  bool clean = true;
+  int kappa_max = -1;
+  bool clean    = true;
   for (i = 0;; ++i)
   {
     if ((flags & BKZ_MAX_LOOPS) && i >= param.max_loops)

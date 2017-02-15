@@ -37,16 +37,18 @@ template <typename FT> void EnumerationDyn<FT>::reset(enumf cur_dist, int cur_de
   Enumeration<FT> enumobj(_gso, new_evaluator, _max_indices);
   enumobj.enumerate(0, d, new_dist, 0, target, partial_sol, pruning_bounds, false, true);
 
-  if (!new_evaluator.sol_coord.empty())
+  if (!new_evaluator.empty())
   {
-    enumf sol_dist = new_evaluator.sol_dist;
+    FT sol_dist2 = new_evaluator.begin()->first;
+    sol_dist2.mul_2si(sol_dist2, -new_evaluator.normExp);
+    enumf sol_dist = sol_dist2.get_d();
     // FPLLL_TRACE("Recovering sub-solution at level: " << cur_depth <<" soldist: " << sol_dist);
 
     if (sol_dist + cur_dist < partdistbounds[0])
     {
       // FPLLL_TRACE("Saving it.");
       for (int i = 0; i < new_dim; ++i)
-        x[i]     = new_evaluator.sol_coord[i].get_d();
+        x[i]     = new_evaluator.begin()->second[i].get_d();
       process_solution(sol_dist + cur_dist);
     }
   }
@@ -142,8 +144,11 @@ void EnumerationDyn<FT>::enumerate(int first, int last, FT &fmaxdist, long fmaxd
 
   fmaxdist.mul_2si(fmaxdistnorm, dual ? fmaxdistexpo - normexp : normexp - fmaxdistexpo);
 
-  if (dual && !_evaluator.sol_coord.empty())
-    reverse_by_swap(_evaluator.sol_coord, 0, d - 1);
+  if (dual && !_evaluator.empty())
+  {
+    for (auto it = _evaluator.begin(), itend = _evaluator.end(); it != itend; ++it)
+      reverse_by_swap(it->second, 0, d - 1);
+  }
 }
 
 template <typename FT>
@@ -256,21 +261,27 @@ template <typename FT> void EnumerationDyn<FT>::do_enumerate()
 }
 
 template class Enumeration<FP_NR<double>>;
+template class EnumerationDyn<FP_NR<double>>;
 
 #ifdef FPLLL_WITH_LONG_DOUBLE
 template class Enumeration<FP_NR<long double>>;
+template class EnumerationDyn<FP_NR<long double>>;
 #endif
 
 #ifdef FPLLL_WITH_QD
 template class Enumeration<FP_NR<dd_real>>;
+template class EnumerationDyn<FP_NR<dd_real>>;
 
 template class Enumeration<FP_NR<qd_real>>;
+template class EnumerationDyn<FP_NR<qd_real>>;
 #endif
 
 #ifdef FPLLL_WITH_DPE
 template class Enumeration<FP_NR<dpe_t>>;
+template class EnumerationDyn<FP_NR<dpe_t>>;
 #endif
 
 template class Enumeration<FP_NR<mpfr_t>>;
+template class EnumerationDyn<FP_NR<mpfr_t>>;
 
 FPLLL_END_NAMESPACE

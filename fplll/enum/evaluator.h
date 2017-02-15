@@ -17,7 +17,8 @@
 #define FPLLL_EVALUATOR_H
 
 #include "../util.h"
-#include <deque>
+#include <map>
+#include <queue>
 
 FPLLL_BEGIN_NAMESPACE
 
@@ -29,138 +30,194 @@ enum EvaluatorMode
   EVALMODE_PRINT = 2
 };
 
+enum EvaluatorStrategy
+{
+  EVALSTRATEGY_BEST_N_SOLUTIONS          = 0,
+  EVALSTRATEGY_OPPORTUNISTIC_N_SOLUTIONS = 1,
+  EVALSTRATEGY_FIRST_N_SOLUTIONS         = 2
+};
+
 /**
- * Evaluator stores the best solution found by enumerate. The Float
- * specialization provides additional information about the solution accuracy.
+ * Evaluator stores the solutions found by enumerate, and updates the enumeration bound
+ * It thus provides an interface to the enumerator,
+ * as well as a basic interface to return solutions.
+ * Specializations will implement specific behaviour and additional interfaces.
  */
+
 template <class FT> class Evaluator
 {
 public:
-  Evaluator(size_t max_aux_solutions = 0, bool find_subsolutions = false)
-      : max_aux_sols(max_aux_solutions), findsubsols(find_subsolutions), new_sol_flag(false)
+  Evaluator(size_t nr_solutions               = 1,
+            EvaluatorStrategy update_strategy = EVALSTRATEGY_BEST_N_SOLUTIONS,
+            bool find_subsolutions            = false)
+      : max_sols(nr_solutions), strategy(update_strategy), findsubsols(find_subsolutions),
+        sol_count(0)
   {
+    FPLLL_CHECK(nr_solutions > 0, "Evaluator: nr_solutions must be strictly positive!");
+    FPLLL_CHECK(strategy <= 2, "Evaluator: invalid strategy");
   }
   virtual ~Evaluator() {}
 
-  /** Called by enumerate when a solution is found.
-     Input: new_sol_coord = coordinates of the solution in Gram-Schmidt basis
-     new_partial_dist = estimated distance between the solution and the
-     orthogonal projection of target on the lattice space
-     max_dist = current bound of the algorithm
-     Output: max_dist can be decreased */
+  /** configuration */
+  size_t max_sols;
+  EvaluatorStrategy strategy;
+  bool findsubsols;
+
+  /** Solutions found in the lattice */
+  // multimap storing solutions mapped by their length
+  // the longest solution is the first, the shortest solution last
+  typedef std::multimap<FT, std::vector<FT>, std::greater<FT>> container_t;
+  container_t solutions;
+  size_t sol_count;
+
+  /** Subsolutions found in the lattice */
+  std::vector<std::pair<FT, std::vector<FT>>> sub_solutions;
+
+  /** interface to resulting solutions */
+  typename container_t::const_reverse_iterator begin() const { return solutions.rbegin(); }
+  typename container_t::const_reverse_iterator end() const { return solutions.rend(); }
+  typename container_t::reverse_iterator begin() { return solutions.rbegin(); }
+  typename container_t::reverse_iterator end() { return solutions.rend(); }
+  size_t size() const { return solutions.size(); }
+  bool empty() const { return solutions.empty(); }
+
+  /** interface for the enumerator */
   virtual void eval_sol(const vector<FT> &new_sol_coord, const enumf &new_partial_dist,
                         enumf &max_dist) = 0;
 
   virtual void eval_sub_sol(int offset, const vector<FT> &new_sub_sol_coord,
                             const enumf &sub_dist) = 0;
 
-  virtual void set_normexp(long /*norm_exp*/) {}
+  virtual void set_normexp(long norm_exp) { normExp = norm_exp; }
+  long normExp;
 
-  /** Coordinates of the solution in the lattice */
-  vector<FT> sol_coord;
-  enumf sol_dist;
+protected:
+  /** calculate enumeration bound based on dist */
+  virtual enumf calc_enum_bound(const FT &dist) const
+  {
+    FT tmp;
+    tmp.mul_2si(dist, -normExp);
+    return tmp.get_d(GMP_RNDU);
+  }
 
-  /** Other solutions found in the lattice */
-  size_t max_aux_sols;
-  std::deque<vector<FT>> aux_sol_coord;
-  std::deque<enumf> aux_sol_dist;
+  /** processes solution into multimap and adjusts max_dist according to strategy */
+  void process_sol(const FT &dist, const vector<FT> &coord, enumf &max_dist)
+  {
+    ++sol_count;
+    solutions.emplace(dist, coord);
+    switch (strategy)
+    {
+    case EVALSTRATEGY_BEST_N_SOLUTIONS:
+      if (solutions.size() < max_sols)
+        return;
+      // remove the longest solution, and use the new longest dist to update max_dist
+      if (solutions.size() > max_sols)
+        solutions.erase(solutions.begin());
+      max_dist = calc_enum_bound(solutions.begin()->first);
+      break;
 
-  /** Subsolutions found in the lattice */
-  bool findsubsols;
-  vector<vector<FT>> sub_sol_coord;
-  vector<enumf> sub_sol_dist;
+    case EVALSTRATEGY_OPPORTUNISTIC_N_SOLUTIONS:
+      // always use dist to update max_dist
+      max_dist = calc_enum_bound(dist);
+      if (solutions.size() <= max_sols)
+        return;
+      // remove longest solution
+      solutions.erase(solutions.begin());
+      break;
 
-  /** Set to true when sol_coord is updated */
-  bool new_sol_flag;
+    case EVALSTRATEGY_FIRST_N_SOLUTIONS:
+      if (solutions.size() < max_sols)
+        return;
+      // when desired nr of solutions has been reached, set enum bound to zero
+      max_dist = 0;
+      break;
+
+    default:
+      FPLLL_CHECK(false, "Evaluator: invalid strategy switch!");
+    }
+  }
 };
 
 /**
- * Simple solution evaluator which provides a result without error bound.
- * The same instance can be used for several calls to enumerate on different
- * problems.
- */
+* Simple solution evaluator which provides a result without error bound.
+* The same instance can be used for several calls to enumerate on different
+* problems.
+*/
 template <class FT> class FastEvaluator : public Evaluator<FT>
 {
 public:
-  using Evaluator<FT>::sol_coord;
-  using Evaluator<FT>::sol_dist;
-  using Evaluator<FT>::new_sol_flag;
-  using Evaluator<FT>::aux_sol_coord;
-  using Evaluator<FT>::aux_sol_dist;
-  using Evaluator<FT>::sub_sol_coord;
-  using Evaluator<FT>::sub_sol_dist;
-  using Evaluator<FT>::max_aux_sols;
+  using Evaluator<FT>::max_sols;
+  using Evaluator<FT>::strategy;
+  using Evaluator<FT>::findsubsols;
+  using Evaluator<FT>::normExp;
+  using Evaluator<FT>::sub_solutions;
 
-  FastEvaluator(size_t max_aux_solutions = 0, bool find_subsolutions = false)
-      : Evaluator<FT>(max_aux_solutions, find_subsolutions)
+  FastEvaluator(size_t nr_solutions               = 1,
+                EvaluatorStrategy update_strategy = EVALSTRATEGY_BEST_N_SOLUTIONS,
+                bool find_subsolutions            = false)
+      : Evaluator<FT>(nr_solutions, update_strategy, find_subsolutions)
   {
   }
-
   virtual ~FastEvaluator() {}
 
-  /**
-   * Called by enumerate when a solution is found.
-   * FastEvaluator always accepts the solution and sets the bound max_dist to
-   * new_partial_dist.
-   *
-   * @param new_sol_coord    Coordinates of the solution in the lattice
-   * @param new_partial_dist Floating-point evaluation of the norm of the solution
-   * @param max_dist        Bound of the enumeration (updated by the function)
-   * @param normExp        r(i, i) is divided by 2^normExp in enumerate before
-   *                       being converted to double
-   */
   virtual void eval_sol(const vector<FT> &new_sol_coord, const enumf &new_partial_dist,
                         enumf &max_dist)
   {
-    if (max_aux_sols != 0 && !sol_coord.empty())
-    {
-      aux_sol_coord.emplace_front(std::move(sol_coord));
-      aux_sol_dist.emplace_front(sol_dist);
-      if (aux_sol_coord.size() > max_aux_sols)
-      {
-        aux_sol_coord.pop_back();
-        aux_sol_dist.pop_back();
-      }
-    }
-    sol_coord = new_sol_coord;
-    max_dist = sol_dist = new_partial_dist;
-    new_sol_flag        = true;
+    FT dist = new_partial_dist;
+    dist.mul_2si(dist, normExp);
+
+    // store solution and update max_dist according to strategy
+    this->process_sol(dist, new_sol_coord, max_dist);
   }
 
   virtual void eval_sub_sol(int offset, const vector<FT> &new_sub_sol_coord, const enumf &sub_dist)
   {
-    sub_sol_coord.resize(std::max(sub_sol_coord.size(), std::size_t(offset + 1)));
-    sub_sol_dist.resize(sub_sol_coord.size(), -1.0);
-    if (sub_sol_dist[offset] == -1.0 || sub_dist < sub_sol_dist[offset])
+    FT dist = sub_dist;
+    dist.mul_2si(dist, normExp);
+
+    sub_solutions.resize(std::max(sub_solutions.size(), std::size_t(offset + 1)));
+
+    if (sub_solutions[offset].second.empty() || dist < sub_solutions[offset].first)
     {
-      sub_sol_coord[offset] = new_sub_sol_coord;
-      for (int i                 = 0; i < offset; ++i)
-        sub_sol_coord[offset][i] = 0.0;
-      sub_sol_dist[offset]       = sub_dist;
+      sub_solutions[offset].first  = dist;
+      sub_solutions[offset].second = new_sub_sol_coord;
+      for (int i                        = 0; i < offset; ++i)
+        sub_solutions[offset].second[i] = 0.0;
     }
   }
 };
 
 /**
- * Evaluator stores the best solution found by enumerate and provides
- * information about the accuracy of this solution.
+ * ErrorBoundEvaluator provides an extra interface to provide
+ * information about the accuracy of solutions.
  */
-template <> class Evaluator<Float>
+class ErrorBoundedEvaluator : public Evaluator<Float>
 {
 public:
-  Evaluator<Float>(int d, const Matrix<Float> &mu, const Matrix<Float> &r, int eval_mode,
-                   size_t max_aux_solutions = 0, bool find_subsolutions = false)
-      : max_aux_sols(max_aux_solutions), findsubsols(find_subsolutions), new_sol_flag(false),
-        eval_mode(eval_mode), input_error_defined(false), d(d), mu(mu), r(r)
+  ErrorBoundedEvaluator(int dim, const Matrix<Float> &mmu, const Matrix<Float> &mr,
+                        EvaluatorMode evalmode, size_t nr_solutions = 1,
+                        EvaluatorStrategy update_strategy = EVALSTRATEGY_BEST_N_SOLUTIONS,
+                        bool find_subsolutions            = false)
+      : Evaluator(nr_solutions, update_strategy, find_subsolutions), eval_mode(evalmode), d(dim),
+        mu(mmu), r(mr), input_error_defined(false)
   {
     max_dr_diag.resize(d);
     max_dm_u.resize(d);
   }
 
-  virtual ~Evaluator<Float>() {}
+  virtual ~ErrorBoundedEvaluator() {}
 
-  virtual void set_normexp(long norm_exp) { normExp = norm_exp; }
-  long normExp;
+  /** Configuration */
+  EvaluatorMode eval_mode;
+  int d;
+  const Matrix<Float> &mu;
+  const Matrix<Float> &r;
+
+  /* To enable error estimation, the caller must set
+  input_error_defined=true and fill max_dr_diag and max_dm_u */
+  bool input_error_defined;
+  FloatVect max_dr_diag, max_dm_u;  // Error bounds on input parameters
+  //  Float last_partial_dist;          // Approx. squared norm of the last solution
 
   void init_delta_def(int prec, double rho, bool withRoundingToEnumf);
 
@@ -169,56 +226,10 @@ public:
    * normOfSolution^2 <= (1 + max_error) * lambda_1(L)^2.
    * The default implementation might fail (i.e. return false).
    */
-  virtual bool get_max_error(Float &max_error) = 0;
-
-  /**
-   * Called by enumerate when a solution is found.
-   * The default implementation always accepts the solution and sets the bound
-   * max_dist to new_partial_dist.
-   *
-   * @param new_sol_coord    Coordinates of the solution
-   * @param new_partial_dist Floating-point estimation of the norm of the solution
-   * @param max_dist        Bound of the enumeration (updated by the function)
-   * @param normExp        It is assumed that r(i, i) is divided by 2^normExp
-   *                       in enumerate
-   */
-  virtual void eval_sol(const FloatVect &new_sol_coord, const enumf &new_partial_dist,
-                        enumf &max_dist) = 0;
-  virtual void eval_sub_sol(int offset, const FloatVect &new_sub_sol_coord,
-                            const enumf &sub_dist) = 0;
+  virtual bool get_max_error(Float &max_error, const Float &sol_dist) = 0;
 
   // Internal use
   bool get_max_error_aux(const Float &max_dist, bool boundOnExactVal, Float &maxDE);
-
-  /** Coordinates of the solution in the lattice */
-  FloatVect sol_coord;
-  enumf sol_dist;
-
-  /** Other solutions found in the lattice */
-  size_t max_aux_sols;
-  std::deque<FloatVect> aux_sol_coord;
-  std::deque<enumf> aux_sol_dist;
-
-  /** Subsolutions found in the lattice */
-  bool findsubsols;
-  vector<FloatVect> sub_sol_coord;
-  vector<enumf> sub_sol_dist;
-
-  /** Set to true when sol_coord is updated */
-  bool new_sol_flag;
-  /** Incremented when sol_coord is updated */
-  long long sol_count;
-  int eval_mode;
-
-  /* To enable error estimation, the caller must set
-     input_error_defined=true and fill max_dr_diag and max_dm_u */
-  bool input_error_defined;
-  FloatVect max_dr_diag, max_dm_u;  // Error bounds on input parameters
-  Float last_partial_dist;          // Approx. squared norm of the last solution
-
-  int d;
-  const Matrix<Float> &mu;
-  const Matrix<Float> &r;
 };
 
 /**
@@ -227,18 +238,20 @@ public:
  * The same object can be used for several calls to enumerate on different
  * instances.
  */
-template <> class FastEvaluator<Float> : public Evaluator<Float>
+class FastErrorBoundedEvaluator : public ErrorBoundedEvaluator
 {
 public:
-  FastEvaluator(int d = 0, const Matrix<Float> &mu = Matrix<Float>(),
-                const Matrix<Float> &r = Matrix<Float>(), int eval_mode = EVALMODE_SV,
-                size_t max_aux_solutions = 0, bool find_subsolutions = false)
-      : Evaluator<Float>(d, mu, r, eval_mode, max_aux_solutions, find_subsolutions)
+  FastErrorBoundedEvaluator(int d = 0, const Matrix<Float> &mu = Matrix<Float>(),
+                            const Matrix<Float> &r  = Matrix<Float>(),
+                            EvaluatorMode eval_mode = EVALMODE_SV, size_t nr_solutions = 1,
+                            EvaluatorStrategy update_strategy = EVALSTRATEGY_BEST_N_SOLUTIONS,
+                            bool find_subsolutions            = false)
+      : ErrorBoundedEvaluator(d, mu, r, eval_mode, nr_solutions, update_strategy, find_subsolutions)
   {
   }
-  virtual ~FastEvaluator() {}
+  virtual ~FastErrorBoundedEvaluator() {}
 
-  virtual bool get_max_error(Float &max_error);
+  virtual bool get_max_error(Float &max_error, const Float &sol_dist);
   virtual void eval_sol(const FloatVect &new_sol_coord, const enumf &new_partial_dist,
                         enumf &max_dist);
   virtual void eval_sub_sol(int offset, const FloatVect &new_sub_sol_coord, const enumf &sub_dist);
@@ -248,20 +261,27 @@ public:
  * ExactEvaluator stores the best solution found by enumerate.
  * The result is guaranteed, but the the evaluation of new solutions is longer.
  */
-class ExactEvaluator : public Evaluator<Float>
+class ExactErrorBoundedEvaluator : public ErrorBoundedEvaluator
 {
 public:
-  ExactEvaluator(int d, const IntMatrix &matrix, const Matrix<Float> &mu, const Matrix<Float> &r,
-                 int eval_mode, size_t max_aux_solutions = 0, bool find_subsolutions = false)
-      : Evaluator<Float>(d, mu, r, eval_mode, max_aux_solutions, find_subsolutions), matrix(matrix)
+  ExactErrorBoundedEvaluator(int d, const IntMatrix &matrix, const Matrix<Float> &mu,
+                             const Matrix<Float> &r, EvaluatorMode eval_mode,
+                             size_t nr_solutions               = 1,
+                             EvaluatorStrategy update_strategy = EVALSTRATEGY_BEST_N_SOLUTIONS,
+                             bool find_subsolutions            = false)
+      : ErrorBoundedEvaluator(d, mu, r, eval_mode, nr_solutions, update_strategy,
+                              find_subsolutions),
+        matrix(matrix)
   {
     int_max_dist = -1;
   }
 
+  virtual ~ExactErrorBoundedEvaluator() {}
+
   /**
    * Sets max_error to 0: the result is guaranteed.
    */
-  virtual bool get_max_error(Float &max_error);
+  virtual bool get_max_error(Float &max_error, const Float &sol_dist);
 
   virtual void eval_sol(const FloatVect &new_sol_coord, const enumf &new_partial_dist,
                         enumf &max_dist);
@@ -270,11 +290,11 @@ public:
 
   Integer int_max_dist;  // Exact norm of the last vector
 
-  std::deque<Integer> aux_sol_int_dist;  // Exact norm of aux vectors
-  vector<Integer> sub_sol_int_dist;      // Exact norm of sub vectors
+  Integer exact_sol_dist(const FloatVect &sol_coord);
+  Integer exact_subsol_dist(int offset, const FloatVect &sol_coord);
 
 private:
-  void update_max_dist(enumf &max_dist);
+  Float int_dist2Float(Integer int_dist);
 
   const IntMatrix &matrix;  // matrix of the lattice
 };

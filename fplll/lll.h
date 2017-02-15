@@ -40,8 +40,31 @@ public:
   ~LLLReduction() { LDConvHelper::free(); }
 #endif
 
-  bool lll(int kappa_min = 0, int kappa_start = 0, int kappa_end = -1);
-  inline bool size_reduction(int kappa_min = 0, int kappa_end = -1);
+  /**
+     @brief LLL reduction.
+
+     @param kappa_min minimal index to go back to
+     @param kappa_start index to start processing at
+     @param kappa_end end index (exclusive)
+     @param size_reduction_start only perform size reductions using vectors starting at this index
+     @return success or failure (due to numerical instability)
+  */
+
+  bool lll(int kappa_min = 0, int kappa_start = 0, int kappa_end = -1,
+           int size_reduction_start = 0);
+
+  /**
+     @brief Size reduction.
+
+     Perform size reduction for all vectors between `kappa_start` and `kappa_end`.
+
+     @param kappa_min start index
+     @param kappa_end end index (exclusive)
+     @param size_reduction_start only perform size reductions using vectors starting at this index
+     @return success or failure (due to numerical instability)
+  */
+
+  inline bool size_reduction(int kappa_min = 0, int kappa_end = -1, int size_reduction_start = 0);
 
   int status;
   int final_kappa;
@@ -53,8 +76,17 @@ public:
 
   
 private:
-  bool babai(int kappa, int ncols);
-  inline bool early_reduction(int start);
+  /**
+     @brief Size reduction.
+
+     @param kappa index to size reduce
+     @param size_reduction_end only perform size reductions using vectors up to this index
+     @param size_reduction_start only perform size reductions using vectors starting at this index
+     @return
+  */
+
+  bool babai(int kappa, int size_reduction_end, int size_reduction_start = 0);
+  inline bool early_reduction(int start, int size_reduction_start = 0);
   inline void print_params();
   inline bool set_status(int new_status);
 
@@ -74,19 +106,21 @@ private:
 template <class ZT, class FT> bool is_lll_reduced(MatGSO<ZT, FT> &m, double delta, double eta);
 
 template <class ZT, class FT>
-inline bool LLLReduction<ZT, FT>::size_reduction(int kappa_min, int kappa_end)
+inline bool LLLReduction<ZT, FT>::size_reduction(int kappa_min, int kappa_end,
+                                                 int size_reduction_start)
 {
   if (kappa_end == -1)
     kappa_end = m.d;
   for (int k = kappa_min; k < kappa_end; k++)
   {
-    if ((k > 0 && !babai(k, k)) || !m.update_gso_row(k))
+    if ((k > 0 && !babai(k, k, size_reduction_start)) || !m.update_gso_row(k))
       return false;
   }
   return set_status(RED_SUCCESS);
 }
 
-template <class ZT, class FT> inline bool LLLReduction<ZT, FT>::early_reduction(int start)
+template <class ZT, class FT>
+inline bool LLLReduction<ZT, FT>::early_reduction(int start, int size_reduction_start)
 {
   m.lock_cols();
   if (verbose)
@@ -95,7 +129,7 @@ template <class ZT, class FT> inline bool LLLReduction<ZT, FT>::early_reduction(
   }
   for (int i = start; i < m.d; i++)
   {
-    if (!babai(i, start))
+    if (!babai(i, start, size_reduction_start))
       return false;
   }
   m.unlock_cols();
