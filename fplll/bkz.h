@@ -238,7 +238,7 @@ int bkz_reduction(IntMatrix &b, IntMatrix &u, int block_size, int flags = BKZ_DE
                   FloatType float_type = FT_DEFAULT, int precision = 0);
 
 int hkz_reduction(IntMatrix &b, int flags = HKZ_DEFAULT, FloatType float_type = FT_DEFAULT,
-                  int precision = 0);
+                  int precision = 0, string = NULL);
 
 FPLLL_END_NAMESPACE
 

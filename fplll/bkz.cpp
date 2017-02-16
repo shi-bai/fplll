@@ -410,9 +410,9 @@ bool BKZReduction<FT>::tour(const int loop, int &kappa_max, const BKZParam &par,
   if (par.flags & BKZ_DUMP_GSO)
   {
     std::ostringstream prefix;
-    prefix << "End of BKZ loop " << std::setw(4) << loop;
+    prefix << "# End of BKZ loop " << std::setw(4) << loop;
     prefix << " (" << std::fixed << std::setw(9) << std::setprecision(3)
-           << (cputime() - cputime_start) * 0.001 << "s)";
+           << (cputime() - cputime_start) * 0.001 << "s)" << endl;
     dump_gso(par.dump_gso_filename, prefix.str());
   }
 
@@ -574,7 +574,7 @@ template <class FT> bool BKZReduction<FT>::bkz()
   if (flags & BKZ_DUMP_GSO)
   {
     std::ostringstream prefix;
-    prefix << "Input";
+    prefix << "# Input" << endl;
     dump_gso(param.dump_gso_filename, prefix.str(), false);
   }
 
@@ -708,9 +708,9 @@ template <class FT> bool BKZReduction<FT>::bkz()
   if (flags & BKZ_DUMP_GSO)
   {
     std::ostringstream prefix;
-    prefix << "Output ";
+    prefix << "# Output ";
     prefix << " (" << std::fixed << std::setw(9) << std::setprecision(3)
-           << (cputime() - cputime_start) * 0.001 << "s)";
+           << (cputime() - cputime_start) * 0.001 << "s)" << endl;
     dump_gso(param.dump_gso_filename, prefix.str());
   }
   return set_status(final_status);
@@ -843,7 +843,7 @@ void BKZReduction<FT>::dump_gso(const std::string &filename, const std::string &
     dump.open(filename.c_str(), std::ios_base::app);
   else
     dump.open(filename.c_str());
-  dump << std::setw(4) << prefix << ": ";
+  dump << std::setw(4) << prefix;
   FT f, log_f;
   long expo;
   for (int i = 0; i < num_rows; i++)
@@ -983,7 +983,7 @@ int bkz_reduction(IntMatrix &b, IntMatrix &u, int block_size, int flags, FloatTy
   return bkz_reduction(&b, &u, param, float_type, precision);
 }
 
-int hkz_reduction(IntMatrix &b, int flags, FloatType float_type, int precision)
+int hkz_reduction(IntMatrix &b, int flags, FloatType float_type, int precision, string dump_gso_filename)
 {
   vector<Strategy> strategies;
   BKZParam param(b.get_rows(), strategies);
@@ -991,7 +991,13 @@ int hkz_reduction(IntMatrix &b, int flags, FloatType float_type, int precision)
   param.delta      = 1;
   if (flags & HKZ_VERBOSE)
     param.flags |= BKZ_VERBOSE;
-  return bkz_reduction(&b, NULL, param, float_type, precision);
+  if (flags & BKZ_DUMP_GSO) {
+    param.dump_gso_filename = dump_gso_filename;
+    param.flags |= BKZ_DUMP_GSO;
+  }
+  
+  int r = bkz_reduction(&b, NULL, param, float_type, precision);
+  return r;
 }
 
 /** enforce instantiation of complete templates **/
