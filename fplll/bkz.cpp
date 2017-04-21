@@ -102,25 +102,26 @@ bool BKZReduction<FT>::svp_preprocessing(int kappa, int block_size, const BKZPar
 
   FPLLL_DEBUG_CHECK(param.strategies.size() > block_size);
 
-  //int lll_start = (param.flags & BKZ_BOUNDED_LLL) ? kappa : 0;
-  int lll_start = kappa;
-  
+  int lll_start = (param.flags & BKZ_BOUNDED_LLL) ? kappa : 0;
+  //int lll_start = kappa;
+
   double start_time = cputime(); /* TIMING */
 
   //cout << " ** before LLL_reductin kappa " << kappa << endl;
   //m.print_r_matrix();
 
-  //if (!lll_obj.lll(lll_start, lll_start, kappa + block_size, 0))
-  //if (!lll_obj.size_reduction(0, kappa + block_size, 0))
-  if (!lll_obj.size_reduction(lll_start, kappa + block_size, 0))
+  
+  if (!lll_obj.lll(lll_start, lll_start, kappa + block_size, 0))
+  //if (!lll_obj.lll(kappa, kappa, kappa + block_size, 0))
+  //if (!lll_obj.lll(lll_start, kappa, kappa + block_size, 0))
+  //if (!lll_obj.size_reduction(kappa, kappa + block_size, 0))
+  //if (!lll_obj.size_reduction(lll_start, kappa + block_size, 0))
   {
     throw std::runtime_error(RED_STATUS_STR[lll_obj.status]);
   }
 
   //cout << " ** after LLL_reductin " << endl;
   //m.print_r_matrix();
-
-  
   cputime_others += (cputime() - start_time);            /* TIMING */
   cputime_others_lll += (cputime() - start_time);        /* TIMING */
   cputime_others_lll_svppre += (cputime() - start_time); /* TIMING */
@@ -307,11 +308,9 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
     throw std::runtime_error(RED_STATUS_STR[lll_obj.status]);
   }
 
-  
   cputime_others += (cputime() - start_time);             /* TIMING */
   cputime_others_lll += (cputime() - start_time);         /* TIMING */
   cputime_others_lll_size_red1 += (cputime() - start_time); /* TIMING */
-
   
   FT old_first;
   long old_first_expo;
@@ -323,18 +322,35 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
   while (remaining_probability > 1. - par.min_success_probability)
   {
 
+    /***GSO***/
+    dump_gso(par.dump_gso_filename, "# before_pre\n");
+  
     start_time = cputime(); /* TIMING */
-
+    
     if (rerandomize)
     {
       rerandomize_block(kappa + 1, kappa + block_size, par.rerandomization_density);
     }
-
     cputime_others += (cputime() - start_time);        /* TIMING */
     cputime_others_random += (cputime() - start_time); /* TIMING */
 
     svp_preprocessing(kappa, block_size, par);
 
+
+    /***GSO***/
+    dump_gso(par.dump_gso_filename, "# before_enum\n");
+    
+    /*****************************************/
+    /* this is b_k^* for after preprocessing
+    FT old2;
+    long old2_expo;
+    old2 = FT(m.get_r_exp(first, first, old2_expo));
+    if (old2 != old_first)
+      cout << "k = " << kappa << ", old 2 = " << old2 << ", old1 = "
+           << old_first << endl;
+    */
+    /*****************************************/
+    
     long max_dist_expo;
     FT max_dist = m.get_r_exp(first, first, max_dist_expo);
     if (dual)
@@ -379,6 +395,9 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
     remaining_probability *= (1 - pruning.expectation);
   }
 
+  /***GSO***/
+  dump_gso(par.dump_gso_filename, "# after_post\n");
+  
   start_time = cputime(); /* TIMING */
   if (!lll_obj.size_reduction(0, first + 1, 0))
   {
@@ -414,6 +433,7 @@ bool BKZReduction<FT>::tour(const int loop, int &kappa_max, const BKZParam &par,
     prefix << " (" << std::fixed << std::setw(9) << std::setprecision(3)
            << (cputime() - cputime_start) * 0.001 << "s)" << endl;
     dump_gso(par.dump_gso_filename, prefix.str());
+    //dump_gso(par.dump_gso_filename, "test\n");    
   }
 
   return clean;
