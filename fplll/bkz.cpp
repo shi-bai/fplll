@@ -173,11 +173,10 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
     cputime_others += (cputime() - start_time);             /* TIMING */
     cputime_others_lll += (cputime() - start_time);         /* TIMING */
     cputime_others_lll_svppost += (cputime() - start_time); /* TIMING */
-
   }
   else if (i_vector != -1)
   {
-        start_time = cputime(); /* TIMING */
+    start_time = cputime(); /* TIMING */
 
     // No, but one coordinate is equal to \pm 1, making
     // linear dependency easy to fix too.
@@ -223,6 +222,12 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
     cputime_others_lll_svppost += (cputime() - start_time); /* TIMING */
 
   }
+
+
+  /* in the end, check the output ratio */
+  
+
+  
   return false;
 }
 
@@ -323,7 +328,7 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
   {
 
     /***GSO***/
-    dump_gso(par.dump_gso_filename, "# before_pre\n");
+    //dump_gso(par.dump_gso_filename, "# before_pre\n");
   
     start_time = cputime(); /* TIMING */
     
@@ -338,7 +343,7 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
 
 
     /***GSO***/
-    dump_gso(par.dump_gso_filename, "# before_enum\n");
+    //dump_gso(par.dump_gso_filename, "# before_enum\n");
     
     /*****************************************/
     /* this is b_k^* for after preprocessing
@@ -378,6 +383,8 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
                        vector<enumxt>(), pruning.coefficients, dual);
     nodes += enum_obj.get_nodes();
     cputime_svp += (cputime() - start_time);
+    
+    //dump_gso(par.dump_gso_filename, "# before_post\n");
 
     if (!evaluator.empty())
     {
@@ -396,8 +403,9 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
   }
 
   /***GSO***/
-  dump_gso(par.dump_gso_filename, "# after_post\n");
-  
+  //dump_gso(par.dump_gso_filename, "# after_post\n");
+
+
   start_time = cputime(); /* TIMING */
   if (!lll_obj.size_reduction(0, first + 1, 0))
   {
@@ -406,7 +414,7 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
   cputime_others += (cputime() - start_time);             /* TIMING */
   cputime_others_lll += (cputime() - start_time);         /* TIMING */
   cputime_others_lll_size_red2 += (cputime() - start_time); /* TIMING */
-
+  
   long new_first_expo;
   FT new_first = m.get_r_exp(first, first, new_first_expo);
   new_first.mul_2si(new_first, new_first_expo - old_first_expo);
@@ -433,6 +441,7 @@ bool BKZReduction<FT>::tour(const int loop, int &kappa_max, const BKZParam &par,
     prefix << " (" << std::fixed << std::setw(9) << std::setprecision(3)
            << (cputime() - cputime_start) * 0.001 << "s)" << endl;
     dump_gso(par.dump_gso_filename, prefix.str());
+    update_GH_ratio(par.block_size);
     //dump_gso(par.dump_gso_filename, "test\n");    
   }
 
@@ -875,6 +884,41 @@ void BKZReduction<FT>::dump_gso(const std::string &filename, const std::string &
   }
   dump << std::endl;
   dump.close();
+}
+
+template <class FT>
+void BKZReduction<FT>::update_GH_ratio(int block_size)
+{
+  double ratio;
+  for (int i = 0; i < num_rows-1; i++)
+  {
+    ratio = m.return_gh_ratio(i, block_size);
+    cout << std::setprecision(3) << ratio << " ";
+  }
+  cout << endl;
+  
+}
+
+
+template <class FT>
+void BKZReduction<FT>::update_bi_GH_ratio(int kappa, int block_size)
+{
+  m.update_gso();
+  double ratio = m.return_gh_ratio(kappa, block_size);
+  cout << "kappa = " << kappa << ", ratio = " << ratio << endl;
+  
+  /* extra 
+  FT f, log_f;
+  long expo;
+  for (int i = 0; i < num_rows; i++)
+  {
+    m.update_gso_row(i);
+    f = m.get_r_exp(i, i, expo);
+    log_f.log(f, GMP_RNDU);
+    cout << log_f.get_d() + expo * std::log(2.0) << " ";
+  }
+  cout << endl;
+  */  
 }
 
 template <class FT> bool BKZAutoAbort<FT>::test_abort(double scale, int maxNoDec)

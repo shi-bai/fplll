@@ -48,6 +48,7 @@ template <class FT>
 void adjust_radius_to_gh_bound(FT &max_dist, long max_dist_expo, int block_size, const FT &root_det,
                                double gh_factor);
 
+  
 /**
  * MatGSO provides an interface for performing elementary operations on a basis
  * and computing its Gram matrix and its Gram-Schmidt orthogonalization.
@@ -370,6 +371,8 @@ public:
   */
 
   FT get_root_det(int start_row, int end_row);
+
+  double return_gh_ratio (int kappa, int block_size);
 
   /**
      @brief Return log of the (squared) determinant of the basis.

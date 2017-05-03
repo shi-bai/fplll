@@ -174,6 +174,9 @@ public:
 
   void dump_gso(const std::string &filename, const std::string &prefix, bool append = true);
 
+  void update_bi_GH_ratio(int kappa, int block_size);
+  void update_GH_ratio(int block_size);
+  
   int status;
 
   /**

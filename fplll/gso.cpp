@@ -552,6 +552,7 @@ template <class ZT, class FT> double MatGSO<ZT, FT>::get_current_slope(int start
   return v1 / v2;
 }
 
+/* returns 2*log(root_det) = log(root_det^2) */
 template <class ZT, class FT> FT MatGSO<ZT, FT>::get_root_det(int start_row, int end_row)
 {
   start_row   = max(0, start_row);
@@ -559,9 +560,11 @@ template <class ZT, class FT> FT MatGSO<ZT, FT>::get_root_det(int start_row, int
   FT h        = (double)(end_row - start_row);
   FT root_det = get_log_det(start_row, end_row) / h;
   root_det.exponential(root_det);
+
   return root_det;
 }
 
+/* returns 2*log(root_det) = log(root_det^2) */
 template <class ZT, class FT> FT MatGSO<ZT, FT>::get_log_det(int start_row, int end_row)
 {
   FT log_det = 0.0;
@@ -575,6 +578,28 @@ template <class ZT, class FT> FT MatGSO<ZT, FT>::get_log_det(int start_row, int 
   }
   return log_det;
 }
+
+template <class ZT, class FT>
+double MatGSO<ZT, FT>::return_gh_ratio (int kappa, int block_size)
+{
+
+  FT root_det = get_root_det(kappa, kappa+block_size);
+  int start_row   = max(0, kappa);
+  int end_row     = min(d, kappa+block_size);
+  double h        = (double)(end_row - start_row);
+  double t = (double) h / 2.0 + 1;
+  t        = lgamma(t);
+  t        = pow(M_E, t * 2.0 / (double) h);
+  t        = t / M_PI;
+  FT f     = t;
+  f        = f * root_det;
+  FT bi;
+  get_r(bi, kappa, kappa);
+  double bid = bi.get_d();
+  double GH = f.get_d();
+  return std::sqrt(bid/GH);
+}
+
 
 template <class ZT, class FT>
 FT MatGSO<ZT, FT>::get_slide_potential(int start_row, int end_row, int block_size)
@@ -609,6 +634,7 @@ void adjust_radius_to_gh_bound(FT &max_dist, long max_dist_expo, int block_size,
     max_dist = f;
   }
 }
+
 
 
 #if 1
