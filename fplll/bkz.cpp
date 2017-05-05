@@ -26,6 +26,9 @@
 
 FPLLL_BEGIN_NAMESPACE
 
+#define RATIO_CHECK
+
+
 template <class FT>
 BKZReduction<FT>::BKZReduction(MatGSO<Integer, FT> &m, LLLReduction<Integer, FT> &lll_obj,
                                const BKZParam &param)
@@ -106,20 +109,29 @@ bool BKZReduction<FT>::svp_preprocessing(int kappa, int block_size, const BKZPar
   //int lll_start = kappa;
 
   double start_time = cputime(); /* TIMING */
-
   //cout << " ** before LLL_reductin kappa " << kappa << endl;
   //m.print_r_matrix();
-
   
-  if (!lll_obj.lll(lll_start, lll_start, kappa + block_size, 0))
-  //if (!lll_obj.lll(kappa, kappa, kappa + block_size, 0))
-  //if (!lll_obj.lll(lll_start, kappa, kappa + block_size, 0))
-  //if (!lll_obj.size_reduction(kappa, kappa + block_size, 0))
-  //if (!lll_obj.size_reduction(lll_start, kappa + block_size, 0))
+  //if (!lll_obj.lll(lll_start, lll_start, kappa + block_size, 0)) // OFFICIAL
+  //if (!lll_obj.lll(lll_start, kappa, kappa + block_size, 0))       // OK
+  if (!lll_obj.lll(kappa, kappa, kappa + block_size, 0))         // OK
+  //if (!lll_obj.lll(kappa, kappa, kappa + block_size, kappa))     // LOOP
+  //if (!lll_obj.lll(0, kappa, kappa + block_size, kappa))         // LOOP
+  //if (!lll_obj.size_reduction(kappa, kappa + block_size, 0))     // slow
+  //if (!lll_obj.size_reduction(lll_start, kappa + block_size, 0)) // slow
   {
     throw std::runtime_error(RED_STATUS_STR[lll_obj.status]);
   }
 
+#ifdef RATIO_CHECK
+    m.update_gso();
+    double ratio = m.return_gh_ratio(kappa, block_size);
+    if (ratio < 1.0) {
+      cout << " # warning LLL, ratio too small " << ratio << " at " <<  kappa << endl;
+    }
+#endif
+
+  
   //cout << " ** after LLL_reductin " << endl;
   //m.print_r_matrix();
   cputime_others += (cputime() - start_time);            /* TIMING */
@@ -168,6 +180,17 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
     // Yes, it is another vector
     FPLLL_DEBUG_CHECK(i_vector != -1 && i_vector != 0);
     m.move_row(kappa + i_vector, kappa);
+
+    /* check GH ratio */
+#ifdef RATIO_CHECK
+    m.update_gso();
+    double ratio = m.return_gh_ratio(kappa, block_size);
+    if (ratio < 1.0) {
+      cout << " # warning, ratio too small " << ratio << " at " <<  kappa << endl;
+      m.move_row(kappa, kappa + i_vector);
+    }
+#endif
+    
     if (!lll_obj.lll(0, kappa, kappa + 1, 0))
       throw lll_obj.status;
     cputime_others += (cputime() - start_time);             /* TIMING */
@@ -189,8 +212,26 @@ bool BKZReduction<FT>::svp_postprocessing(int kappa, int block_size, const vecto
     }
     m.row_op_end(d, d + 1);
     m.move_row(d, kappa);
+
+    /* check GH ratio */
+#ifdef RATIO_CHECK
+    m.update_gso();
+    double ratio = m.return_gh_ratio(kappa, block_size);
+    if (ratio < 1.0) {
+      cout << " # warning 2, ratio too small " << ratio << " at " <<  kappa << endl;
+      m.move_row(kappa, d);
+      m.remove_last_row();      
+    }
+    else{
+      m.move_row(kappa + i_vector + 1, d);
+      m.remove_last_row();
+    }
+#else
     m.move_row(kappa + i_vector + 1, d);
     m.remove_last_row();
+#endif
+
+      
     if (!lll_obj.lll(0, kappa, kappa + 1, 0))
       throw lll_obj.status;
         cputime_others += (cputime() - start_time);             /* TIMING */

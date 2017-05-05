@@ -373,6 +373,7 @@ public:
   FT get_root_det(int start_row, int end_row);
 
   double return_gh_ratio (int kappa, int block_size);
+  double compare_gh_ratio (FT &bi, int kappa, int block_size);
 
   /**
      @brief Return log of the (squared) determinant of the basis.

@@ -602,6 +602,26 @@ double MatGSO<ZT, FT>::return_gh_ratio (int kappa, int block_size)
 
 
 template <class ZT, class FT>
+double MatGSO<ZT, FT>::compare_gh_ratio (FT &bi, int kappa, int block_size)
+{
+
+  FT root_det = get_root_det(kappa, kappa+block_size);
+  int start_row   = max(0, kappa);
+  int end_row     = min(d, kappa+block_size);
+  double h        = (double)(end_row - start_row);
+  double t = (double) h / 2.0 + 1;
+  t        = lgamma(t);
+  t        = pow(M_E, t * 2.0 / (double) h);
+  t        = t / M_PI;
+  FT f     = t;
+  f        = f * root_det;
+  double bid = bi.get_d();
+  double GH = f.get_d();
+  return std::sqrt(bid/GH);
+}
+
+
+template <class ZT, class FT>
 FT MatGSO<ZT, FT>::get_slide_potential(int start_row, int end_row, int block_size)
 {
   FT potential = 0.0;
