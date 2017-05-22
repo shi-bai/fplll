@@ -389,8 +389,9 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
     start_time = cputime();
     const Pruning &pruning = get_pruning(kappa, block_size, par);
 
-    vector<FT> &sol_coord = evaluator.sol_coord;
-    sol_coord.clear();
+    FPLLL_DEBUG_CHECK(pruning.metric == PRUNER_METRIC_PROBABILITY_OF_SHORTEST)
+
+    evaluator.solutions.clear();
     Enumeration<FT> enum_obj(m, evaluator);
     enum_obj.enumerate(kappa, kappa + block_size, max_dist, max_dist_expo, vector<FT>(),
                        vector<enumxt>(), pruning.coefficients, dual);
@@ -399,12 +400,12 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
 
     print_after_svp (0, m.d, block_size);
 
-    if (!sol_coord.empty())
+    if (!evaluator.empty())
     {
       if (dual)
-        dsvp_postprocessing(kappa, block_size, sol_coord);/* TIMING INSIDE */
+        dsvp_postprocessing(kappa, block_size, evaluator.begin()->second);
       else
-        svp_postprocessing(kappa, block_size, sol_coord);/* TIMING INSIDE */
+        svp_postprocessing(kappa, block_size, evaluator.begin()->second);
 
       rerandomize = false;
     }
@@ -412,7 +413,8 @@ bool BKZReduction<FT>::svp_reduction(int kappa, int block_size, const BKZParam &
     {
       rerandomize = true;
     }
-    remaining_probability *= (1 - pruning.probability);
+    remaining_probability *= (1 - pruning.expectation);
+  }
 
   }
   start_time = cputime();
@@ -654,8 +656,8 @@ template <class FT> bool BKZReduction<FT>::bkz()
   if (sd)
     lll_obj.lll(0, 0, num_rows);
 
-  int kappa_max;
-  bool clean = true;
+  int kappa_max = -1;
+  bool clean    = true;
   for (i = 0;; ++i)
   {
     if ((flags & BKZ_MAX_LOOPS) && i >= param.max_loops)
