@@ -45,9 +45,10 @@ enum MatGSOFlags
 */
 
 template <class FT>
-void gaussian_heuristic(FT &max_dist, long max_dist_expo, int block_size, const FT &root_det,
-                        double gh_factor);
+void adjust_radius_to_gh_bound(FT &max_dist, long max_dist_expo, int block_size, const FT &root_det,
+                               double gh_factor);
 
+  
 /**
  * MatGSO provides an interface for performing elementary operations on a basis
  * and computing its Gram matrix and its Gram-Schmidt orthogonalization.
@@ -371,6 +372,9 @@ public:
 
   FT get_root_det(int start_row, int end_row);
 
+  double return_gh_ratio (int kappa, int block_size);
+  double compare_gh_ratio (FT &bi, int kappa, int block_size);
+
   /**
      @brief Return log of the (squared) determinant of the basis.
 
@@ -411,6 +415,13 @@ public:
    * See the description of row_addmul.
    */
   const bool row_op_force_long;
+
+  void print_mu(int, int);
+  void print_mu_matrix();
+  void check_mu_matrix();
+  void print_r_matrix();
+  void check_r_matrix();
+  void check_g_matrix();
 
 private:
   /* Allocates matrices and arrays whose size depends on d (all but tmp_col_expo).

@@ -68,8 +68,8 @@ bool LLLReduction<ZT, FT>::lll(int kappa_min, int kappa_start, int kappa_end,
     m.move_row(kappa_min, kappa_end - 1 - zeros);
   }
 
-  if (zeros < d &&
-      ((kappa_start > 0 && !babai(kappa_start, kappa_start)) || !m.update_gso_row(kappa_start)))
+  if (zeros < d && ((kappa_start > 0 && !babai(kappa_start, kappa_start, size_reduction_start)) ||
+                    !m.update_gso_row(kappa_start)))
   {
     final_kappa = kappa_start;
     return false;
@@ -91,7 +91,7 @@ bool LLLReduction<ZT, FT>::lll(int kappa_min, int kappa_start, int kappa_end,
       kappa_max = kappa;
       if (enable_early_red && is_power_of_2(kappa) && kappa > last_early_red)
       {
-        if (!early_reduction(kappa))
+        if (!early_reduction(kappa, size_reduction_start))
         {
           final_kappa = kappa;
           return false;
@@ -124,7 +124,8 @@ bool LLLReduction<ZT, FT>::lll(int kappa_min, int kappa_start, int kappa_end,
       n_swaps++;
       // Failure, computes the insertion index
       int old_k = kappa;
-      for (kappa--; kappa > kappa_min; kappa--)
+      for (kappa--; kappa > kappa_min; kappa--) // IMPORTANT: CHANGED HERE
+      //for (kappa--; kappa > kappa_start; kappa--)
       {
         ftmp1.mul(m.get_r_exp(kappa - 1, kappa - 1), swap_threshold);
         if (m.enable_row_expo)

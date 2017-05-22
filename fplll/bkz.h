@@ -174,6 +174,9 @@ public:
 
   void dump_gso(const std::string &filename, const std::string &prefix, bool append = true);
 
+  void update_bi_GH_ratio(int kappa, int block_size);
+  void update_GH_ratio(int block_size);
+  
   int status;
 
   /**
@@ -187,16 +190,23 @@ public:
   unsigned long num_dsvp;
   Float best_so_far;
   double time_so_far;
+
   double cputime_svp;
   double cputime_others;
+
   double cputime_others_lll;
+  double cputime_others_random;
+
   double cputime_others_lll_svppre;
   double cputime_others_lll_svppost;
-  double cputime_others_lll_svpred1; 
-  double cputime_others_random;
+  long int dada3;
+  double cputime_others_lll_size_red1;
+  double cputime_others_lll_size_red2;
+  
   vector<int> svp_bs_count;
   void print_after_svp(bool dual, int max_row, int block_size);
-  
+
+
 private:
   void print_tour(const int loop, int min_row, int max_row);
   void print_params(const BKZParam &param, ostream &out);
@@ -231,7 +241,7 @@ int bkz_reduction(IntMatrix &b, IntMatrix &u, int block_size, int flags = BKZ_DE
                   FloatType float_type = FT_DEFAULT, int precision = 0);
 
 int hkz_reduction(IntMatrix &b, int flags = HKZ_DEFAULT, FloatType float_type = FT_DEFAULT,
-                  int precision = 0);
+                  int precision = 0, string = NULL);
 
 FPLLL_END_NAMESPACE
 

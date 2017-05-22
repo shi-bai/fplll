@@ -169,8 +169,28 @@ template <> int hkz(Options &o, ZZ_mat<mpz_t> &b)
   int flags = 0;
   if (o.verbose)
     flags |= HKZ_VERBOSE;
-  int status = hkz_reduction(b, flags, o.float_type, o.precision);
-  cout << b << endl;
+  string dump_gso_filename;
+  if (o.bkz_flags & BKZ_DUMP_GSO) {
+    dump_gso_filename = o.bkz_dump_gso_filename;
+    flags |= BKZ_DUMP_GSO;
+  }
+  
+  int status = hkz_reduction(b, flags, o.float_type, o.precision, dump_gso_filename);
+  //cout << b << endl;
+
+  const char *format = o.output_format ? o.output_format : "b";
+  for (int i = 0; format[i]; i++)
+  {
+    switch (format[i])
+    {
+    case 'b':
+      cout << b << endl;
+      break;
+    case ' ':
+      cout << endl;
+      break;
+    }
+  }
   if (status != RED_SUCCESS)
   {
     cerr << "Failure: " << get_red_status_str(status) << endl;

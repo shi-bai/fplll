@@ -72,9 +72,6 @@ public:
   int zeros;
   int n_swaps;
 
-  FT delta, eta, swap_threshold;
-
-  
 private:
   /**
      @brief Size reduction.
@@ -86,11 +83,12 @@ private:
   */
 
   bool babai(int kappa, int size_reduction_end, int size_reduction_start = 0);
-  inline bool early_reduction(int start);
+  inline bool early_reduction(int start, int size_reduction_start = 0);
   inline void print_params();
   inline bool set_status(int new_status);
 
   MatGSO<ZT, FT> &m;
+  FT delta, eta, swap_threshold;
 
   bool enable_early_red;
   bool siegel;
@@ -109,6 +107,9 @@ template <class ZT, class FT>
 inline bool LLLReduction<ZT, FT>::size_reduction(int kappa_min, int kappa_end,
                                                  int size_reduction_start)
 {
+  extend_vect(babai_mu, kappa_end);
+  extend_vect(babai_expo, kappa_end);
+
   if (kappa_end == -1)
     kappa_end = m.d;
   for (int k = kappa_min; k < kappa_end; k++)
@@ -119,7 +120,8 @@ inline bool LLLReduction<ZT, FT>::size_reduction(int kappa_min, int kappa_end,
   return set_status(RED_SUCCESS);
 }
 
-template <class ZT, class FT> inline bool LLLReduction<ZT, FT>::early_reduction(int start)
+template <class ZT, class FT>
+inline bool LLLReduction<ZT, FT>::early_reduction(int start, int size_reduction_start)
 {
   m.lock_cols();
   if (verbose)
@@ -128,7 +130,7 @@ template <class ZT, class FT> inline bool LLLReduction<ZT, FT>::early_reduction(
   }
   for (int i = start; i < m.d; i++)
   {
-    if (!babai(i, start))
+    if (!babai(i, start, size_reduction_start))
       return false;
   }
   m.unlock_cols();
