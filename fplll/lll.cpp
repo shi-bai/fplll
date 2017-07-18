@@ -19,6 +19,7 @@
 
 #include "lll.h"
 #include "util.h"
+#include <iomanip>
 
 FPLLL_BEGIN_NAMESPACE
 
@@ -40,6 +41,34 @@ LLLReduction<ZT, FT>::LLLReduction(MatGSOInterface<ZT, FT> &m, double delta, dou
   swap_threshold   = siegel ? delta - eta * eta : delta;
   zeros            = 0;
 }
+
+
+template <class ZT, class FT>
+bool LLLReduction<ZT, FT>::dump_gso (const std::string &filename,
+                                     const std::string &prefix, bool append)
+
+{
+  ofstream dump;
+  if (append)
+    dump.open(filename.c_str(), std::ios_base::app);
+  else
+    dump.open(filename.c_str());
+  dump << std::setw(10) << prefix;
+  FT f, log_f;
+  long expo;
+  for (int i = 0; i < m.d; i++)
+  {
+    m.update_gso_row(i);
+    f = m.get_r_exp(i, i, expo);
+    //cout << " f is " << f << endl;
+    log_f.log(f, GMP_RNDU);
+    //cout << " log_f is " << log_f  << ", log_f_exp is " << expo << endl;    
+    dump << std::setprecision(8) << log_f.get_d() + expo * std::log(2.0) << " ";
+  }
+  dump << std::endl;
+  dump.close();
+}
+  
 
 template <class ZT, class FT>
 bool LLLReduction<ZT, FT>::lll(int kappa_min, int kappa_start, int kappa_end,
@@ -89,6 +118,7 @@ bool LLLReduction<ZT, FT>::lll(int kappa_min, int kappa_start, int kappa_end,
              << " cputime=" << cputime() - start_time << endl;
       }
       kappa_max = kappa;
+
       if (enable_early_red && is_power_of_2(kappa) && kappa > last_early_red)
       {
         if (!early_reduction(kappa, size_reduction_start))

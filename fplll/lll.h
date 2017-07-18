@@ -54,6 +54,10 @@ public:
   bool lll(int kappa_min = 0, int kappa_start = 0, int kappa_end = -1,
            int size_reduction_start = 0);
 
+
+  bool dump_gso (const std::string &filename,
+                 const std::string &prefix, bool append = true);
+  
   /**
      @brief Size reduction.
 

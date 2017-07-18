@@ -152,6 +152,8 @@ public:
     */
   virtual void negate_row_of_b(int i) = 0;
 
+  virtual const Matrix<ZT> &get_b_matrix() = 0;
+  
   /**
    * When enable_row_expo=true, row_expo[i] is the smallest non-negative integer
    * such that b(i, j) &lt;= 2^row_expo[i] for all j. Otherwise this array is empty.

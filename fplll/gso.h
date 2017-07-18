@@ -152,6 +152,7 @@ public:
   virtual inline void remove_last_rows(int n_removed_rows);
 
   virtual void move_row(int old_r, int new_r);
+  virtual const Matrix<ZT> &get_b_matrix() { return b;} 
 
   /**
    * b[i] := b[i] + x * b[j].
