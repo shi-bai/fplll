@@ -26,7 +26,7 @@
 
 FPLLL_BEGIN_NAMESPACE
 
-#define RATIO_CHECK
+//#define RATIO_CHECK
 
 template <class ZT, class FT>
 BKZReduction<ZT, FT>::BKZReduction(MatGSO<ZT, FT> &m, LLLReduction<ZT, FT> &lll_obj,
@@ -424,6 +424,15 @@ bool BKZReduction<ZT, FT>::svp_reduction(int kappa, int block_size, const BKZPar
   cputime_others += (cputime() - start_time);             /* TIMING */
   cputime_others_lll += (cputime() - start_time);         /* TIMING */
   cputime_others_lll_size_red2 += (cputime() - start_time); /* TIMING */
+
+
+  if (block_size == 60) {
+    double ratio;
+    m.update_gso();
+    ratio = m.return_gh_ratio(kappa, block_size);
+    cout << std::setprecision(3) << ratio << " ";
+  }
+  
   
   // in order to check if we made progress, we compare the new shortest vector to the
   // old one (note that simply checking clean flags is not sufficient since
@@ -446,7 +455,7 @@ bool BKZReduction<ZT, FT>::tour(const int loop, int &kappa_max, const BKZParam &
   {
     print_tour(loop, min_row, max_row);
   }
-
+  
   if (par.flags & BKZ_DUMP_GSO)
   {
     std::ostringstream prefix;
@@ -477,7 +486,7 @@ bool BKZReduction<ZT, FT>::trunc_tour(int &kappa_max, const BKZParam &par, int m
       kappa_max = kappa;
     }*/
 
-    print_after_svp(0, max_row, block_size);
+    //print_after_svp(0, max_row, block_size);
     
   }
 
@@ -513,7 +522,7 @@ bool BKZReduction<ZT, FT>::hkz(int &kappa_max, const BKZParam &param, int min_ro
            << " reduced for the first time" << endl;
       kappa_max = kappa;
       }*/
-        print_after_svp(0, max_row, block_size);
+    //print_after_svp(0, max_row, block_size);
   }
 
   // this line fixes fpylll issue 73 with stalling BKZ instances
