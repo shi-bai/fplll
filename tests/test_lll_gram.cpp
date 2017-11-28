@@ -19,6 +19,7 @@
 #include <gso_gram.h>
 #include <gso_interface.h>
 #include <lll.h>
+#include <test_utils.h>
 
 using namespace std;
 using namespace fplll;
@@ -46,22 +47,14 @@ bool have_equal_grammatrix(MatGSO<Z_NR<ZT>, FP_NR<FT>> M1, MatGSOGram<Z_NR<ZT>, 
   return true;
 }
 
-template <class ZT> void read_matrix(ZZ_mat<ZT> &A, const char *input_filename)
-{
-  ifstream is(input_filename);
-  if (!is)
-  {
-    cerr << "Could not open file!" << endl;
-  }  // throw std::runtime_error("could not open input file");
-  is >> A;
-}
-
 template <class ZT, class FT> int is_already_reduced(ZZ_mat<ZT> &A, Matrix<Z_NR<ZT>> &G)
 {
   ZZ_mat<ZT> U;
   ZZ_mat<ZT> UT;
 
-  MatGSO<Z_NR<ZT>, FP_NR<FT>> M(A, U, UT, 0);
+  // MatGSO<Z_NR<ZT>, FP_NR<FT>> M(A, U, UT, 0);
+  // changed this to flag = 1
+  MatGSO<Z_NR<ZT>, FP_NR<FT>> M(A, U, UT, 1);
   MatGSOGram<Z_NR<ZT>, FP_NR<FT>> M2(G, U, UT, 1);
 
   int is_reduced  = is_lll_reduced<Z_NR<ZT>, FP_NR<FT>>(M, LLL_DEF_DELTA, LLL_DEF_ETA);
@@ -97,7 +90,8 @@ template <class ZT, class FT> int test_lll(ZZ_mat<ZT> &A)
   // ------------------------------------------------
   // Create a MatGSO-object (basis gso) for A
   // and a MatGSOGram-object (gram gso) for G.
-  MatGSO<Z_NR<ZT>, FP_NR<FT>> M(A, U, UT, 0);
+  // changed flag to 1 here
+  MatGSO<Z_NR<ZT>, FP_NR<FT>> M(A, U, UT, 1);
   M.update_gso();
   MatGSOGram<Z_NR<ZT>, FP_NR<FT>> Mgram(G, U, UT, 1);
   Mgram.update_gso();
@@ -107,6 +101,7 @@ template <class ZT, class FT> int test_lll(ZZ_mat<ZT> &A)
   // Test whether A and G are not already LLL-reduced.
   if (is_already_reduced<ZT, FT>(A, G))
   {
+    cerr << "The matrices are already LLL-reduced";
     return 1;
   }
   // ---------------------------------------------------
@@ -129,6 +124,14 @@ template <class ZT, class FT> int test_lll(ZZ_mat<ZT> &A)
 
   if (is_reduced != 1 || is_greduced != 1)
   {
+    if (is_reduced != 1)
+    {
+      cerr << "The basis GSO-object is not LLL-reduced after calling LLL\n";
+    }
+    if (is_greduced != 1)
+    {
+      cerr << "The gram GSO-object is not LLL-reduced after calling LLL\n";
+    }
     return 1;
   }
   // ----------------------------------------------------------
@@ -151,6 +154,7 @@ template <class ZT, class FT> int test_lll(ZZ_mat<ZT> &A)
   }
   else
   {
+    cerr << "Unequal gram matrix\n";
     return 1;
   }
 }
@@ -158,8 +162,10 @@ template <class ZT, class FT> int test_lll(ZZ_mat<ZT> &A)
 template <class ZT, class FT> int test_filename(const char *input_filename)
 {
   ZZ_mat<ZT> A;
-  read_matrix(A, input_filename);
-  return test_lll<ZT, FT>(A);
+  int status = 0;
+  status |= read_matrix(A, input_filename);
+  status |= test_lll<ZT, FT>(A);
+  return status;
 }
 
 /**
@@ -192,6 +198,7 @@ int main(int /*argc*/, char ** /*argv*/)
   status |= test_filename<mpz_t, double>(TESTDATADIR "/tests/lattices/example_cvp_in_lattice5");
   status |= test_int_rel<mpz_t, double>(50, 20);
   status |= test_int_rel<mpz_t, double>(40, 10);
+  status |= test_int_rel<mpz_t, double>(200, 100);
 
   status |= test_filename<mpz_t, mpfr_t>(TESTDATADIR "/tests/lattices/example2_in");
   status |= test_filename<mpz_t, mpfr_t>(TESTDATADIR "/tests/lattices/example_cvp_in_lattice");
@@ -201,6 +208,7 @@ int main(int /*argc*/, char ** /*argv*/)
   status |= test_filename<mpz_t, mpfr_t>(TESTDATADIR "/tests/lattices/example_cvp_in_lattice5");
   status |= test_int_rel<mpz_t, mpfr_t>(50, 20);
   status |= test_int_rel<mpz_t, mpfr_t>(40, 10);
+  status |= test_int_rel<mpz_t, mpfr_t>(200, 100);
 
 #ifdef FPLLL_WITH_LONG_DOUBLE
   status |= test_filename<mpz_t, long double>(TESTDATADIR "/tests/lattices/example2_in");
@@ -215,6 +223,8 @@ int main(int /*argc*/, char ** /*argv*/)
       test_filename<mpz_t, long double>(TESTDATADIR "/tests/lattices/example_cvp_in_lattice5");
   status |= test_int_rel<mpz_t, long double>(50, 20);
   status |= test_int_rel<mpz_t, long double>(40, 10);
+// status |= test_int_rel<mpz_t, long double>(200, 100);
+// *
 #endif
 #ifdef FPLLL_WITH_QD
   status |= test_filename<mpz_t, dd_real>(TESTDATADIR "/tests/lattices/example2_in");
@@ -225,6 +235,7 @@ int main(int /*argc*/, char ** /*argv*/)
   status |= test_filename<mpz_t, dd_real>(TESTDATADIR "/tests/lattices/example_cvp_in_lattice5");
   status |= test_int_rel<mpz_t, dd_real>(50, 20);
   status |= test_int_rel<mpz_t, dd_real>(40, 10);
+  // status |= test_int_rel<mpz_t, dd_real>(200, 100);
 
   status |= test_filename<mpz_t, qd_real>(TESTDATADIR "/tests/lattices/example2_in");
   status |= test_filename<mpz_t, qd_real>(TESTDATADIR "/tests/lattices/example_cvp_in_lattice");
@@ -234,6 +245,7 @@ int main(int /*argc*/, char ** /*argv*/)
   status |= test_filename<mpz_t, qd_real>(TESTDATADIR "/tests/lattices/example_cvp_in_lattice5");
   status |= test_int_rel<mpz_t, qd_real>(50, 20);
   status |= test_int_rel<mpz_t, qd_real>(40, 10);
+// status |= test_int_rel<mpz_t, qd_real>(200, 100);
 #endif
 #ifdef FPLLL_WITH_DPE
   status |= test_filename<mpz_t, dpe_t>(TESTDATADIR "/tests/lattices/example2_in");
@@ -244,6 +256,8 @@ int main(int /*argc*/, char ** /*argv*/)
   status |= test_filename<mpz_t, dpe_t>(TESTDATADIR "/tests/lattices/example_cvp_in_lattice5");
   status |= test_int_rel<mpz_t, dpe_t>(50, 20);
   status |= test_int_rel<mpz_t, dpe_t>(40, 10);
+// status |= test_int_rel<mpz_t, dpe_t>(200, 100);
+//*
 #endif
 
   if (status == 0)

@@ -75,8 +75,7 @@ public:
     gptr = &arg_g;
     if (gptr == nullptr)
     {
-      cerr << "Pointer of the Grammatrix equal to the nullpointer.\n";
-      exit(1);
+      throw std::runtime_error("Error: gptr is equal to the nullpointer.");
     }
     d = gptr->get_rows();
     size_increased();
@@ -116,6 +115,9 @@ public:
 
   virtual inline FT &get_gram(FT &f, int i, int j);
 
+  // b[i] <-> b[j] (i < j)
+  virtual void row_swap(int i, int j);
+
 private:
   /* Allocates matrices and arrays whose size depends on d (all but tmp_col_expo).
    When enable_int_gram=false, initializes bf. */
@@ -135,8 +137,6 @@ private:
 
   virtual void row_addmul_si_2exp(int i, int j, long x, long expo);
   virtual void row_addmul_2exp(int i, int j, const ZT &x, long expo);
-  // b[i] <-> b[j] (i < j)
-  virtual void row_swap(int i, int j);
   // virtual void apply_transform(const Matrix<FT> &transform, int src_base, int target_base);
 };
 
@@ -144,8 +144,7 @@ template <class ZT, class FT> inline long MatGSOGram<ZT, FT>::get_max_exp_of_b()
 {
   if (gptr == nullptr)
   {
-    cerr << "Error: gptr is equal to the nullpointer.\n";
-    exit(1);
+    throw std::runtime_error("Error: gptr is equal to the nullpointer.");
   }
   Matrix<ZT> &g = *gptr;
   // normally, this returns the maximum
@@ -159,8 +158,7 @@ template <class ZT, class FT> inline bool MatGSOGram<ZT, FT>::b_row_is_zero(int 
 {
   if (gptr == nullptr)
   {
-    cerr << "Error: gptr is equal to the nullpointer.\n";
-    exit(1);
+    throw std::runtime_error("Error: gptr is equal to the nullpointer.");
   }
   Matrix<ZT> &g = *gptr;
   // normally this returns whether the
@@ -172,8 +170,7 @@ template <class ZT, class FT> inline int MatGSOGram<ZT, FT>::get_cols_of_b()
 {
   if (gptr == nullptr)
   {
-    cerr << "Error: gptr is equal to the nullpointer.\n";
-    exit(1);
+    throw std::runtime_error("Error: gptr is equal to the nullpointer.");
   }
   // in this gram-matrix version, the number
   // of columns of b is the same as the
@@ -185,8 +182,7 @@ template <class ZT, class FT> inline int MatGSOGram<ZT, FT>::get_rows_of_b()
 {
   if (gptr == nullptr)
   {
-    cerr << "Error: gptr is equal to the nullpointer.\n";
-    exit(1);
+    throw std::runtime_error("Error: gptr is equal to the nullpointer.");
   }
   // in this gram-matrix version, the number
   // of columns of b is the same as the
@@ -217,8 +213,7 @@ template <class ZT, class FT> inline FT &MatGSOGram<ZT, FT>::get_gram(FT &f, int
   {
     if (gptr == nullptr)
     {
-      cerr << "Error: gptr is equal to the nullpointer.";
-      exit(1);
+      throw std::runtime_error("Error: gptr is equal to the nullpointer.");
     }
     f.set_z((*gptr)(i, j));
   }
