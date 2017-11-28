@@ -177,7 +177,8 @@ template <> int hkz(Options &o, ZZ_mat<mpz_t> &b)
     flags |= BKZ_DUMP_GSO;
   }
   
-  int status = hkz_reduction(b, flags, o.float_type, o.precision, dump_gso_filename);
+  //int status = hkz_reduction(b, flags, o.float_type, o.precision, dump_gso_filename);
+  int status = hkz_reduction(b, flags, o.float_type, o.precision);
   //cout << b << endl;
 
   const char *format = o.output_format ? o.output_format : "b";

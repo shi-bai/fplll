@@ -453,7 +453,7 @@ bool BKZReduction<ZT, FT>::tour(const int loop, int &kappa_max, const BKZParam &
     prefix << "# End of BKZ loop " << std::setw(4) << loop;
     prefix << " (" << std::fixed << std::setw(9) << std::setprecision(3)
            << (cputime() - cputime_start) * 0.001 << "s)" << endl;
-    dump_gso(par.dump_gso_filename, prefix.str());
+    //dump_gso(par.dump_gso_filename, prefix.str());
     update_GH_ratio(par.block_size);
     //dump_gso(par.dump_gso_filename, true, "End of BKZ loop", loop,       (cputime() - cputime_start) * 0.001);
   }
@@ -791,10 +791,11 @@ void BKZReduction<ZT, FT>::print_tour(const int loop, int min_row, int max_row)
 }
 
 
-template <class FT> void BKZReduction<FT>::print_after_svp(bool dual, int max_row, int block_size)
+template <class ZT, class FT>
+void BKZReduction<ZT, FT>::print_after_svp(bool dual, int max_row, int block_size)
 {
   FT r0;
-  Float fr0;
+  FP_NR<mpfr_t> fr0;
   long expo;
   r0  = m.get_r_exp(0, 0, expo);
   fr0 = r0.get_d();
@@ -969,8 +970,8 @@ void BKZReduction<ZT, FT>::dump_gso(const std::string &filename, bool append,
   dump.close();
 }
 
-template <class FT>
-void BKZReduction<FT>::update_GH_ratio(int block_size)
+template <class ZT, class FT>
+void BKZReduction<ZT, FT>::update_GH_ratio(int block_size)
 {
   double ratio;
   for (int i = 0; i < num_rows-1; i++)
@@ -983,8 +984,8 @@ void BKZReduction<FT>::update_GH_ratio(int block_size)
 }
 
 
-template <class FT>
-void BKZReduction<FT>::update_bi_GH_ratio(int kappa, int block_size)
+template <class ZT, class FT>
+void BKZReduction<ZT, FT>::update_bi_GH_ratio(int kappa, int block_size)
 {
   m.update_gso();
   double ratio = m.return_gh_ratio(kappa, block_size);
@@ -1161,13 +1162,7 @@ int hkz_reduction(ZZ_mat<mpz_t> &b, int flags, FloatType float_type, int precisi
   param.delta      = 1;
   if (flags & HKZ_VERBOSE)
     param.flags |= BKZ_VERBOSE;
-  if (flags & BKZ_DUMP_GSO) {
-    param.dump_gso_filename = dump_gso_filename;
-    param.flags |= BKZ_DUMP_GSO;
-  }
-  
-  int r = bkz_reduction(&b, NULL, param, float_type, precision);
-  return r;
+  return bkz_reduction(&b, NULL, param, float_type, precision);
 }
 
 /** enforce instantiation of complete templates **/

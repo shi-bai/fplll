@@ -303,7 +303,7 @@ public:
   unsigned long input_block_size;
   unsigned long num_svp;
   unsigned long num_dsvp;
-  Float best_so_far;
+  FP_NR<mpfr_t> best_so_far;
   double time_so_far;
 
   double cputime_svp;
@@ -430,8 +430,6 @@ int bkz_reduction(ZZ_mat<mpz_t> &b, int block_size, int flags = BKZ_DEFAULT,
 int bkz_reduction(ZZ_mat<mpz_t> &b, ZZ_mat<mpz_t> &u, int block_size, int flags = BKZ_DEFAULT,
                   FloatType float_type = FT_DEFAULT, int precision = 0);
 
-int hkz_reduction(IntMatrix &b, int flags = HKZ_DEFAULT, FloatType float_type = FT_DEFAULT,
-                  int precision = 0, string = NULL);
 /**
  * @brief Performs HKZ reduction.
  *
@@ -452,7 +450,6 @@ int hkz_reduction(IntMatrix &b, int flags = HKZ_DEFAULT, FloatType float_type = 
  */
 int hkz_reduction(ZZ_mat<mpz_t> &b, int flags = HKZ_DEFAULT, FloatType float_type = FT_DEFAULT,
                   int precision = 0);
->>>>>>> upstream/master
 
 FPLLL_END_NAMESPACE
 
