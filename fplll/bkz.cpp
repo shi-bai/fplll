@@ -464,8 +464,10 @@ bool BKZReduction<ZT, FT>::tour(const int loop, int &kappa_max, const BKZParam &
     prefix << " (" << std::fixed << std::setw(9) << std::setprecision(3)
            << (cputime() - cputime_start) * 0.001 << "s)" << endl;
     //dump_gso(par.dump_gso_filename, prefix.str());
-    update_GH_ratio(par.block_size);
-    //dump_gso(par.dump_gso_filename, true, "End of BKZ loop", loop,       (cputime() - cputime_start) * 0.001);
+
+    // compute GH ratio for each block
+    // update_GH_ratio(par.block_size);
+    dump_gso(par.dump_gso_filename, true, "End of BKZ loop", loop,       (cputime() - cputime_start) * 0.001);
   }
 
   return clean;
@@ -487,7 +489,7 @@ bool BKZReduction<ZT, FT>::trunc_tour(int &kappa_max, const BKZParam &par, int m
       kappa_max = kappa;
     }*/
 
-    //print_after_svp(0, max_row, block_size);
+    print_after_svp(0, max_row, block_size);
     
   }
 
@@ -523,7 +525,7 @@ bool BKZReduction<ZT, FT>::hkz(int &kappa_max, const BKZParam &param, int min_ro
            << " reduced for the first time" << endl;
       kappa_max = kappa;
       }*/
-    //print_after_svp(0, max_row, block_size);
+    print_after_svp(0, max_row, block_size);
   }
 
   // this line fixes fpylll issue 73 with stalling BKZ instances
@@ -792,7 +794,7 @@ void BKZReduction<ZT, FT>::print_tour(const int loop, int min_row, int max_row)
   r0  = m.get_r_exp(min_row, min_row, expo);
   fr0 = r0.get_d();
   fr0.mul_2si(fr0, expo);
-  cerr << "End of " << algorithm << " loop " << std::setw(4) << loop << ", time = " << std::fixed
+  cerr << "# End of " << algorithm << " loop " << std::setw(4) << loop << ", time = " << std::fixed
        << std::setw(9) << std::setprecision(3) << (cputime() - cputime_start) * 0.001 << "s";
   cerr << ", r_" << min_row << " = " << fr0;
   cerr << ", slope = " << std::setw(9) << std::setprecision(6)
@@ -824,7 +826,7 @@ void BKZReduction<ZT, FT>::print_after_svp(bool dual, int max_row, int block_siz
 
   if (tot > time_so_far)
   {
-    time_so_far += 5.0;
+    time_so_far += 1200.0;
     cerr << "# nsvp " << std::setw(5) << (num_svp + num_dsvp) << " ("
          << svp_bs_count[input_block_size - 1] << ") "
          << "t_tot " << std::fixed << std::setw(6) << std::setprecision(2) << tot;
@@ -849,6 +851,8 @@ void BKZReduction<ZT, FT>::print_after_svp(bool dual, int max_row, int block_siz
     // cerr << svp_bs_count << endl;
   }
 
+
+  /*
   if (tot > 3600 * 30)
   {
     cerr << "# nsvp_last " << std::setw(5) << (num_svp + num_dsvp) << " ("
@@ -867,6 +871,7 @@ void BKZReduction<ZT, FT>::print_after_svp(bool dual, int max_row, int block_siz
     // cerr << svp_bs_count << endl;
     exit(1);
   }
+  */
 }
 
 
