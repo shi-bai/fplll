@@ -19,6 +19,11 @@
 #include "nr.h"
 #include <vector>
 
+#if defined(__AVX2__)
+#include <immintrin.h>
+#pragma message("# [warn]: AVX2 + FMA optimizations ENABLED")
+#endif
+
 FPLLL_BEGIN_NAMESPACE
 
 /** Extends the size of the given vector. */
@@ -211,7 +216,7 @@ public:
   /** Multiplication of NumVector and a number c, till index n. */
   void mul(const NumVect<T> &v, int n, T c);
   /** Multiplication of NumVector and a number c. */
-  void mul(const NumVect<T> &v, T c) { mul(v, size(), c); }
+  void mul(const NumVect<T> &v, T c); // { mul(v, size(), c); }
   /** Division of NumVector and a number c, from index b till index n. */
   void div(const NumVect<T> &v, int b, int n, T c);
   /** Division of NumVector and a number c, till index n. */
@@ -265,6 +270,7 @@ private:
   vector<T> data;
 };
 
+/** Generic add **/
 template <class T> void NumVect<T>::add(const NumVect<T> &v, int n)
 {
   FPLLL_DEBUG_CHECK(n <= size() && size() == v.size() && v.is_zero(n));
@@ -272,6 +278,51 @@ template <class T> void NumVect<T>::add(const NumVect<T> &v, int n)
     data[i].add(data[i], v[i]);
 }
 
+/** AVX2 add for FP_NR<double> **/
+#if defined(__AVX2__)
+template <> inline void NumVect<FP_NR<double>>::add(const NumVect<FP_NR<double>> &v, int n)
+{
+  FPLLL_DEBUG_CHECK(n <= size() && size() == v.size() && v.is_zero(n));
+  double* dpt = reinterpret_cast<double*>(&data[0]);
+  const double* vpt = reinterpret_cast<const double*>(&v.data[0]);
+  int i = 0;
+  if (n >= 4) {
+    for (; i <= n - 4; i += 4) {
+      __m256d t1 = _mm256_loadu_pd(&dpt[i]);
+      __m256d t2 = _mm256_loadu_pd(&vpt[i]);
+      __m256d result = _mm256_add_pd(t1, t2);
+      _mm256_storeu_pd(&dpt[i], result);
+    }
+  }
+  for (; i < n; i++) {
+    dpt[i] += vpt[i];
+  }
+}
+#endif
+
+/** AVX2 add for Z_NR<long> **/
+#if defined(__AVX2__)
+template <> inline void NumVect<Z_NR<long>>::add(const NumVect<Z_NR<long>> &v, int n)
+{
+  FPLLL_DEBUG_CHECK(n <= size() && size() == v.size() && v.is_zero(n));
+  long* dpt = reinterpret_cast<long*>(&data[0]);
+  const long* vpt = reinterpret_cast<const long*>(&v.data[0]);
+  int i = 0;
+  if (n >= 4) {
+    for (; i <= n - 4; i += 4) {
+      __m256i t1 = _mm256_loadu_si256((const __m256i*)&dpt[i]);
+      __m256i t2 = _mm256_loadu_si256((const __m256i*)&vpt[i]);
+      __m256i result = _mm256_add_epi64(t1, t2);
+      _mm256_storeu_si256((__m256i*)&dpt[i], result);
+    }
+  }
+  for (; i < n; i++) {
+    dpt[i] += vpt[i];
+  }
+}
+#endif
+
+/** Generic sub **/
 template <class T> void NumVect<T>::sub(const NumVect<T> &v, int n)
 {
   FPLLL_DEBUG_CHECK(n <= size() && size() == v.size() && v.is_zero(n));
@@ -279,15 +330,120 @@ template <class T> void NumVect<T>::sub(const NumVect<T> &v, int n)
     data[i].sub(data[i], v[i]);
 }
 
-template <class T> void NumVect<T>::mul(const NumVect<T> &v, int b, int n, T c)
+/** AVX2 sub for FP_NR<double> **/
+#if defined(__AVX2__)
+template <> inline void NumVect<FP_NR<double>>::sub(const NumVect<FP_NR<double>> &v, int n)
 {
   FPLLL_DEBUG_CHECK(n <= size() && size() == v.size() && v.is_zero(n));
-  for (int i = n - 1; i >= b; i--)
+  double* dpt = reinterpret_cast<double*>(&data[0]);
+  const double* vpt = reinterpret_cast<const double*>(&v.data[0]);
+  int i = 0;
+  if (n >= 4) {
+    for (; i <= n - 4; i += 4) {
+      __m256d t1 = _mm256_loadu_pd(&dpt[i]);
+      __m256d t2 = _mm256_loadu_pd(&vpt[i]);
+      __m256d result = _mm256_sub_pd(t1, t2);
+      _mm256_storeu_pd(&dpt[i], result);
+    }
+  }
+  for (; i < n; i++) {
+    dpt[i] -= vpt[i];
+  }
+}
+#endif
+
+/** AVX2 sub for Z_NR<long> **/
+#if defined(__AVX2__)
+template <> inline void NumVect<Z_NR<long>>::sub(const NumVect<Z_NR<long>> &v, int n)
+{
+  FPLLL_DEBUG_CHECK(n <= size() && size() == v.size() && v.is_zero(n));
+  long* dpt = reinterpret_cast<long*>(&data[0]);
+  const long* vpt = reinterpret_cast<const long*>(&v.data[0]);
+  int i = 0;
+  if (n >= 4) {
+    for (; i <= n - 4; i += 4) {
+      __m256i t1 = _mm256_loadu_si256((const __m256i*)&dpt[i]);
+      __m256i t2 = _mm256_loadu_si256((const __m256i*)&vpt[i]);
+      __m256i result = _mm256_sub_epi64(t1, t2);
+      _mm256_storeu_si256((__m256i*)&dpt[i], result);
+    }
+  }
+  for (; i < n; i++) {
+    dpt[i] -= vpt[i];
+  }
+}
+#endif
+
+/** Generic scalar mul **/
+template <class T> inline void NumVect<T>::mul(const NumVect<T> &v, int b, int n, T c)
+{
+  FPLLL_DEBUG_CHECK(n <= size() && size() == v.size());
+  for (int i = b; i < n; i++)
     data[i].mul(v[i], c);
 }
 
-template <class T> void NumVect<T>::mul(const NumVect<T> &v, int n, T c) { mul(v, 0, n, c); }
+template <class T> inline void NumVect<T>::mul(const NumVect<T> &v, int n, T c)
+{
+  mul(v, 0, n, c);
+}
 
+template <class T> inline void NumVect<T>::mul(const NumVect<T> &v, T c)
+{
+  mul(v, 0, size(), c);
+}
+
+/** AVX2 mul for FP_NR<double> **/
+#if defined(__AVX2__)
+template <> inline void NumVect<FP_NR<double>>::mul(const NumVect<FP_NR<double>> &v, int b, int n, FP_NR<double> c)
+{
+  FPLLL_DEBUG_CHECK(n <= size() && size() == v.size());
+  double c_raw = c.get_d();
+  double* dpt = reinterpret_cast<double*>(&data[0]);
+  const double* vpt = reinterpret_cast<const double*>(&v.data[0]);
+  int i = b;
+  if ((n - b) >= 4) {
+    __m256d t_c = _mm256_set1_pd(c_raw);
+    for (; i <= n - 4; i += 4) {
+      __m256d t_v = _mm256_loadu_pd(vpt + i);
+      __m256d res = _mm256_mul_pd(t_v, t_c);
+      _mm256_storeu_pd(dpt + i, res);
+    }
+  }
+  for (; i < n; i++) {
+    dpt[i] = vpt[i] * c_raw;
+  }
+}
+#endif
+
+/** AVX2 mul for Z_NR<long> **/
+#if defined(__AVX2__)
+template <> inline void NumVect<Z_NR<long>>::mul(const NumVect<Z_NR<long>> &v, int b, int n, Z_NR<long> c)
+{
+  FPLLL_DEBUG_CHECK(n <= size() && size() == v.size());
+  long c_raw = c.get_si();
+  long* dpt = reinterpret_cast<long*>(&data[0]);
+  const long* vpt = reinterpret_cast<const long*>(&v.data[0]);
+  int i = b;
+  if ((n - b) >= 4) {
+    __m256i t_c = _mm256_set1_epi64x(c_raw);
+    for (; i <= n - 4; i += 4) {
+      __m256i t_v = _mm256_loadu_si256((const __m256i*)(vpt + i));
+      __m256i low_bits = _mm256_mul_epu32(t_v, t_c);
+      __m256i v_high   = _mm256_srli_epi64(t_v, 32);
+      __m256i c_high   = _mm256_srli_epi64(t_c, 32);
+      __m256i high_bits = _mm256_add_epi64(_mm256_mul_epu32(v_high, t_c),
+                                           _mm256_mul_epu32(t_v, c_high));
+      __m256i res = _mm256_add_epi64(low_bits, _mm256_slli_epi64(high_bits, 32));
+      _mm256_storeu_si256((__m256i*)(dpt + i), res);
+    }
+  }
+  for (; i < n; i++) {
+    dpt[i] = vpt[i] * c_raw;
+  }
+}
+#endif
+
+/** Generic div **/
 template <class T> void NumVect<T>::div(const NumVect<T> &v, int b, int n, T c)
 {
   FPLLL_DEBUG_CHECK(n <= size() && size() == v.size() && v.is_zero(n));
@@ -297,6 +453,17 @@ template <class T> void NumVect<T>::div(const NumVect<T> &v, int b, int n, T c)
 
 template <class T> void NumVect<T>::div(const NumVect<T> &v, int n, T c) { div(v, 0, n, c); }
 
+/** AVX2 div for FP_NR<double> **/
+template <> inline void NumVect<FP_NR<double>>::div(const NumVect<FP_NR<double>> &v, int b, int n, FP_NR<double> c)
+{
+  FPLLL_DEBUG_CHECK(n <= size() && size() == v.size() && v.is_zero(n));
+  double c_val = c.get_d();
+  double inv_c = 1.0 / c_val;
+  FP_NR<double> invw(inv_c);
+  this->mul(v, b, n, invw);
+}
+
+/** Generic addmul (data = data + v*x) **/
 template <class T> void NumVect<T>::addmul(const NumVect<T> &v, T x, int beg, int n)
 {
   FPLLL_DEBUG_CHECK(n <= size() && size() == v.size() && v.is_zero(n));
@@ -308,6 +475,64 @@ template <class T> void NumVect<T>::addmul(const NumVect<T> &v, T x, int n)
 {
   this->addmul(v, x, 0, n);
 }
+
+/** AVX2 addmul for FP_NR<double> **/
+#if defined(__AVX2__) && defined(__FMA__)
+template <> inline void NumVect<FP_NR<double>>::addmul(const NumVect<FP_NR<double>> &v, FP_NR<double> x, int beg, int n)
+{
+  FPLLL_DEBUG_CHECK(n <= size() && size() == v.size() && v.is_zero(n));
+  int count = n - beg;
+  if (count <= 0)
+    return;
+  double factor = x.get_d();
+  double* p_dst = reinterpret_cast<double*>(&data[0]);
+  const double* p_src = reinterpret_cast<const double*>(&v.data[0]);
+  int i = beg;
+  if (count >= 4) {
+    __m256d v_factor = _mm256_set1_pd(factor);
+    for (; i <= n - 4; i += 4) {
+      __m256d vd = _mm256_loadu_pd(p_dst + i);
+      __m256d vs = _mm256_loadu_pd(p_src + i);
+      _mm256_storeu_pd(p_dst + i, _mm256_fmadd_pd(vs, v_factor, vd));
+    }
+  }
+  for (; i < n; i++) {
+    p_dst[i] += p_src[i] * factor;
+  }
+}
+#endif
+
+/** AVX2 addmul for Z_NR<long> **/
+#if defined(__AVX2__)
+template <> inline void NumVect<Z_NR<long>>::addmul(const NumVect<Z_NR<long>> &v, Z_NR<long> x, int beg, int n)
+{
+  FPLLL_DEBUG_CHECK(n <= size() && size() == v.size() && v.is_zero(n));
+  int count = n - beg;
+  if (count <= 0) return;
+  long x_raw = x.get_si();
+  long* p_dst = reinterpret_cast<long*>(&data[0]);
+  const long* p_src = reinterpret_cast<const long*>(&v.data[0]);
+  int i = beg;
+  if (count >= 4) {
+    __m256i t_x = _mm256_set1_epi64x(x_raw);
+    __m256i x_high = _mm256_srli_epi64(t_x, 32);
+    for (; i <= n - 4; i += 4) {
+      __m256i t_v = _mm256_loadu_si256((const __m256i*)(p_src + i));
+      __m256i t_d = _mm256_loadu_si256((const __m256i*)(p_dst + i));
+      __m256i v_high = _mm256_srli_epi64(t_v, 32);
+      __m256i low_bits = _mm256_mul_epu32(t_v, t_x);
+      __m256i mid_bits = _mm256_add_epi64( _mm256_mul_epu32(v_high, t_x),
+                                           _mm256_mul_epu32(t_v, x_high) );
+      __m256i product = _mm256_add_epi64(low_bits, _mm256_slli_epi64(mid_bits, 32));
+      __m256i res = _mm256_add_epi64(t_d, product);
+      _mm256_storeu_si256((__m256i*)(p_dst + i), res);
+    }
+  }
+  for (; i < n; i++) {
+    p_dst[i] += p_src[i] * x_raw;
+  }
+}
+#endif
 
 template <class T>
 void NumVect<T>::addmul_2exp(const NumVect<T> &v, const T &x, long expo, int n, T &tmp)
@@ -321,6 +546,7 @@ void NumVect<T>::addmul_2exp(const NumVect<T> &v, const T &x, long expo, int n, 
   }
 }
 
+/** Generic addmul_si  **/
 template <class T> void NumVect<T>::addmul_si(const NumVect<T> &v, long x, int n)
 {
   FPLLL_DEBUG_CHECK(n <= size() && size() == v.size() && v.is_zero(n));
@@ -328,17 +554,116 @@ template <class T> void NumVect<T>::addmul_si(const NumVect<T> &v, long x, int n
     data[i].addmul_si(v[i], x);
 }
 
-template <class T>
-void NumVect<T>::addmul_si_2exp(const NumVect<T> &v, long x, long expo, int n, T &tmp)
+/** AVX2 addmul_si for Z_NR<long>, used in update_gso_row() **/
+#if defined(__AVX2__)
+template <> inline void NumVect<Z_NR<long>>::addmul_si(const NumVect<Z_NR<long>> &v, long x, int n)
 {
-  FPLLL_DEBUG_CHECK(n <= size() && size() == v.size() && v.is_zero(n));
-  for (int i = n - 1; i >= 0; i--)
+  if (n <= 0 || x == 0)
+    return;
+  long* dpt = reinterpret_cast<long*>(&data[0]);
+  const long* vpt = reinterpret_cast<const long*>(&v.data[0]);
+  int i = 0;
+  if (n >= 4) {
+    if (x == 1) { /* easy case */
+      for (; i <= n - 4; i += 4) {
+        __m256i t_v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(vpt + i));
+        __m256i t_d = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(dpt + i));
+        _mm256_storeu_si256(reinterpret_cast<__m256i*>(dpt + i), _mm256_add_epi64(t_d, t_v));
+      }
+    }
+    else if (x == -1) { /* easy case */
+      for (; i <= n - 4; i += 4) {
+        __m256i t_v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(vpt + i));
+        __m256i t_d = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(dpt + i));
+        _mm256_storeu_si256(reinterpret_cast<__m256i*>(dpt + i), _mm256_sub_epi64(t_d, t_v));
+      }
+    }
+    else {
+      for (; i <= n - 4; i += 4) {
+        dpt[i] += vpt[i] * x;
+        dpt[i+1] += vpt[i+1] * x;
+        dpt[i+2] += vpt[i+2] * x;
+        dpt[i+3] += vpt[i+3] * x;
+      }
+    }
+  }
+  for (; i < n; i++) {
+    dpt[i] += vpt[i] * x;
+  }
+}
+#endif
+
+/** Generic addmul_si_2exp  **/
+template <class T> inline void NumVect<T>::addmul_si_2exp(const NumVect<T> &v, long x, long expo, int n, T &tmp)
+{
+  FPLLL_DEBUG_CHECK(n <= size() && size() == v.size());
+  for (int i = 0; i < n; i++)
   {
     tmp.mul_si(v[i], x);
     tmp.mul_2si(tmp, expo);
     data[i].add(data[i], tmp);
   }
 }
+
+/** AVX2 + FMA addmul_si_2exp for FP_NR<double> **/
+#if defined(__AVX2__) && defined(__FMA__)
+template <>
+inline void NumVect<FP_NR<double>>::addmul_si_2exp(const NumVect<FP_NR<double>> &v, long x, long expo, int n, FP_NR<double> &tmp)
+{
+  FPLLL_DEBUG_CHECK(n <= size() && size() == v.size());
+  if (n <= 0)
+    return;
+  double multiplier = static_cast<double>(x) * std::ldexp(1.0, expo);
+  double* dpt = reinterpret_cast<double*>(&data[0]);
+  const double* vpt = reinterpret_cast<const double*>(&v.data[0]);
+  int i = 0;
+  if (n >= 4) {
+    __m256d v_mult = _mm256_set1_pd(multiplier);
+    for (; i <= n - 4; i += 4) {
+      __m256d vd = _mm256_loadu_pd(dpt + i);
+      __m256d vs = _mm256_loadu_pd(vpt + i);
+      _mm256_storeu_pd(dpt + i, _mm256_fmadd_pd(vs, v_mult, vd));
+    }
+  }
+  for (; i < n; i++) {
+    dpt[i] += vpt[i] * multiplier;
+  }
+}
+#endif
+
+/** AVX2 addmul_si_2exp for Z_NR<long> **/
+#if defined(__AVX2__)
+template <>
+inline void NumVect<Z_NR<long>>::addmul_si_2exp(const NumVect<Z_NR<long>> &v, long x, long expo, int n, Z_NR<long> &tmp)
+{
+  FPLLL_DEBUG_CHECK(n <= size() && size() == v.size());
+  if (n <= 0) return;
+  long* dpt = reinterpret_cast<long*>(&data[0]);
+  const long* vpt = reinterpret_cast<const long*>(&v.data[0]);
+  int i = 0;
+  if (n >= 4) {
+    if (expo >= 0 && expo < 63) {
+      long shifted_x = x << expo;
+      __m256i v_x = _mm256_set1_epi64x(shifted_x);
+      __m256i x_hi = _mm256_srli_epi64(v_x, 32);
+      for (; i <= n - 4; i += 4) {
+        __m256i vs = _mm256_loadu_si256((const __m256i*)(vpt + i));
+        __m256i vd = _mm256_loadu_si256((__m256i*)(dpt + i));
+        __m256i v_hi = _mm256_srli_epi64(vs, 32);
+        __m256i low = _mm256_mul_epu32(vs, v_x);
+        __m256i mid = _mm256_add_epi64(_mm256_mul_epu32(v_hi, v_x), _mm256_mul_epu32(vs, x_hi));
+        __m256i prod = _mm256_add_epi64(low, _mm256_slli_epi64(mid, 32));
+        _mm256_storeu_si256((__m256i*)(dpt + i), _mm256_add_epi64(vd, prod));
+      }
+    }
+  }
+  for (; i < n; i++) {
+    tmp.mul_si(vpt[i], x);
+    tmp.mul_2si(tmp, expo);
+    dpt[i] += tmp.get_si();
+  }
+}
+#endif
 
 template <class T> long NumVect<T>::get_max_exponent()
 {
@@ -405,6 +730,68 @@ template <class T> inline void dot_product(T &result, const NumVect<T> &v1, cons
 {
   dot_product(result, v1, v2, v1.size());
 }
+
+/** AVX2 dot_product for FP_NR<double> **/
+#if defined(__AVX2__) && defined(__FMA__)
+template <>
+inline void dot_product<FP_NR<double>>(FP_NR<double> &result,
+                                       const NumVect<FP_NR<double>> &v1,
+                                       const NumVect<FP_NR<double>> &v2,
+                                       int beg, int n)
+{
+  int count = n - beg;
+  if (count <= 0)
+  {
+    result = 0.0;
+    return;
+  }
+  const double* __restrict p1 = reinterpret_cast<const double*>(&v1[beg]);
+  const double* __restrict p2 = reinterpret_cast<const double*>(&v2[beg]);
+  double res_scalar = 0.0;
+  int i = 0;
+  __m256d acc = _mm256_setzero_pd();
+  if (count >= 8) {
+    __m256d acc2 = _mm256_setzero_pd();
+    for (; i <= count - 8; i += 8) {
+      acc  = _mm256_fmadd_pd(_mm256_loadu_pd(p1 + i),     _mm256_loadu_pd(p2 + i),     acc);
+      acc2 = _mm256_fmadd_pd(_mm256_loadu_pd(p1 + i + 4), _mm256_loadu_pd(p2 + i + 4), acc2);
+    }
+    acc = _mm256_add_pd(acc, acc2);
+  }
+  for (; i <= count - 4; i += 4) {
+    acc = _mm256_fmadd_pd(_mm256_loadu_pd(p1 + i), _mm256_loadu_pd(p2 + i), acc);
+  }
+  if (i > 0) {
+    __m128d low = _mm256_castpd256_pd128(acc);
+    __m128d high = _mm256_extractf128_pd(acc, 1);
+    __m128d sum = _mm_add_pd(low, high);
+    sum = _mm_add_sd(sum, _mm_unpackhi_pd(sum, sum));
+    res_scalar = _mm_cvtsd_f64(sum);
+  }
+  for (; i < count; i++) {
+    res_scalar += p1[i] * p2[i];
+  }
+  result = res_scalar;
+}
+
+template <>
+inline void dot_product<fplll::FP_NR<double>>(fplll::FP_NR<double> &result,
+                                              const fplll::NumVect<fplll::FP_NR<double>> &v1,
+                                              const fplll::NumVect<fplll::FP_NR<double>> &v2,
+                                              int n)
+{
+  dot_product<fplll::FP_NR<double>>(result, v1, v2, 0, n);
+}
+
+template <>
+inline void dot_product<fplll::FP_NR<double>>(fplll::FP_NR<double> &result,
+                                              const fplll::NumVect<fplll::FP_NR<double>> &v1,
+                                              const fplll::NumVect<fplll::FP_NR<double>> &v2)
+{
+  dot_product<fplll::FP_NR<double>>(result, v1, v2, 0, v1.size());
+}
+#endif
+
 
 template <class T> inline void squared_norm(T &result, const NumVect<T> &v)
 {

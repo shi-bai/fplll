@@ -223,6 +223,97 @@ bool LLLReduction<ZT, FT>::babai(int kappa, int size_reduction_end, int size_red
   return true;
 }
 
+/** This specification speeds-up for Z_NR<long>, FP_NR<double> **/
+#if defined(__AVX2__) && defined(__FMA__)
+template <>
+bool LLLReduction<Z_NR<long>, FP_NR<double>>::babai(int kappa, int size_reduction_end, int size_reduction_start)
+{
+  // FPLLL_TRACE_IN("kappa=" << kappa);  
+  long max_expo = LONG_MAX;
+
+  for (int iter = 0;; iter++)
+  {
+    if (!m.update_gso_row(kappa, size_reduction_end - 1))
+      return set_status(RED_GSO_FAILURE);
+
+    bool loop_needed = false;
+    double d_eta = eta.get_d();
+    for (int j = size_reduction_end - 1; j >= size_reduction_start && !loop_needed; j--)
+    {
+      m.get_mu(ftmp1, kappa, j);
+      loop_needed = (std::abs(ftmp1.get_d()) > d_eta);
+    }
+    if (!loop_needed)
+      break;
+
+    if (iter >= 2)
+    {
+      long new_max_expo = m.get_max_mu_exp(kappa, size_reduction_end);
+      if (new_max_expo > max_expo - SIZE_RED_FAILURE_THRESH)
+      {
+        return set_status(RED_BABAI_FAILURE);
+      }
+      max_expo = new_max_expo;
+    }
+
+    for (int j = size_reduction_start; j < size_reduction_end; j++)
+    {
+      babai_mu[j] = m.get_mu_exp(kappa, j, babai_expo[j]);
+    }
+    m.row_op_begin(kappa, kappa + 1);
+    double* p_babai_mu = reinterpret_cast<double*>(&babai_mu[0]);
+    for (int j = size_reduction_end - 1; j >= size_reduction_start; j--)
+    {
+      mu_m_ant.rnd_we(babai_mu[j], babai_expo[j]);
+      if (mu_m_ant.zero_p())
+        continue;
+      // Approximate update of the mu_(kappa,k)'s in avx2
+      double mu_ant_val = mu_m_ant.get_d();
+      __m256d v_mu_ant = _mm256_set1_pd(mu_ant_val);
+      const double* p_mu_row_j = reinterpret_cast<const double*>(&m.get_mu_exp(j, size_reduction_start));
+      double* p_target_mu = p_babai_mu + size_reduction_start;
+      int k = 0;
+      int limit = j - size_reduction_start;
+
+      // 2-WAY UNROLLED SIMD: Processes 8 doubles per iteration
+      // This hides FMA pipeline latency and utilizes both execution ports
+      for (; k <= limit - 8; k += 8) 
+      {
+        __m256d v_mu_jk0 = _mm256_loadu_pd(p_mu_row_j + k);
+        __m256d v_mu_jk1 = _mm256_loadu_pd(p_mu_row_j + k + 4);
+        __m256d v_b_mu0  = _mm256_loadu_pd(p_target_mu + k);
+        __m256d v_b_mu1  = _mm256_loadu_pd(p_target_mu + k + 4);
+                
+        // Result = b_mu - (mu_ant * mu_jk)
+        v_b_mu0 = _mm256_fnmadd_pd(v_mu_ant, v_mu_jk0, v_b_mu0);
+        v_b_mu1 = _mm256_fnmadd_pd(v_mu_ant, v_mu_jk1, v_b_mu1);
+                
+        _mm256_storeu_pd(p_target_mu + k, v_b_mu0);
+        _mm256_storeu_pd(p_target_mu + k + 4, v_b_mu1);
+      }
+
+      // Standard SIMD for remaining < 8 elements
+      for (; k <= limit - 4; k += 4) 
+      {
+        __m256d v_new_mu = _mm256_fnmadd_pd(v_mu_ant, _mm256_loadu_pd(p_mu_row_j + k), _mm256_loadu_pd(p_target_mu + k));
+        _mm256_storeu_pd(p_target_mu + k, v_new_mu);
+      }
+
+      for (int actual_k = size_reduction_start + k; actual_k < j; actual_k++)
+      {
+        p_babai_mu[actual_k] -= mu_ant_val * p_mu_row_j[actual_k - size_reduction_start];
+      }
+      // SIZE REDUCTION
+      mu_m_ant.neg(mu_m_ant);
+      // Optimization Note: Ensure row_addmul_we uses the bit-hack to avoid ldexp (Libm)
+      m.row_addmul_we(kappa, j, mu_m_ant, babai_expo[j]);
+    }
+    m.row_op_end(kappa, kappa + 1);
+  }
+  return true;
+}
+#endif
+
 template <class ZT, class FT>
 bool is_lll_reduced(MatGSOInterface<ZT, FT> &m, double delta, double eta)
 {

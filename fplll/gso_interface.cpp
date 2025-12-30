@@ -163,6 +163,76 @@ template <class ZT, class FT> bool MatGSOInterface<ZT, FT>::update_gso_row(int i
   return true;
 }
 
+/** This specification speeds-up for Z_NR<long>, FP_NR<double> **/
+#if defined(__AVX2__) && defined(__FMA__)
+template <>
+inline bool MatGSOInterface<Z_NR<long>, FP_NR<double>>::update_gso_row(int i, int last_j)
+{
+  /** compilation checks **/
+  static_assert(std::is_standard_layout<FP_NR<double>>::value,
+                "# Error: FP_NR<double> must be in standard layout for SIMD access");
+  static_assert(sizeof(FP_NR<double>) == sizeof(double),
+                "# Error: FP_NR<double> must have same size as double");
+  if (i >= n_known_rows)
+  {
+    discover_row();
+  }
+  FPLLL_DEBUG_CHECK(i >= 0 && i < n_known_rows && last_j >= 0 && last_j < n_source_rows);
+  int j = max(0, gso_valid_cols[i]);
+  for (; j <= last_j; j++) {
+    get_gram(ftmp1, i, j);
+    FPLLL_DEBUG_CHECK(j == i || gso_valid_cols[j] >= j);
+    double dsum = 0.0;
+    if (j > 0) {
+      const double* __restrict p_mu = reinterpret_cast<const double*>(&mu[j][0]);
+      const double* __restrict p_r = reinterpret_cast<const double*>(&r[i][0]);
+      int k = 0;
+      if (j >= 8) {
+        __m256d acc1 = _mm256_setzero_pd();
+        __m256d acc2 = _mm256_setzero_pd();
+        for (; k <= j - 8; k += 8) { /* process 8 doubles in two batches */
+          acc1 = _mm256_fmadd_pd(_mm256_loadu_pd(p_mu + k), _mm256_loadu_pd(p_r + k), acc1);
+          acc2 = _mm256_fmadd_pd(_mm256_loadu_pd(p_mu + k + 4), _mm256_loadu_pd(p_r + k + 4), acc2);
+        }
+        acc1 = _mm256_add_pd(acc1, acc2);
+        if (k <= j - 4) { /* process 4 doubles */
+          acc1 = _mm256_fmadd_pd(_mm256_loadu_pd(p_mu + k), _mm256_loadu_pd(p_r + k), acc1);
+          k += 4;
+        }
+        /* process 2 doubles */
+        __m128d low = _mm256_castpd256_pd128(acc1);
+        __m128d high = _mm256_extractf128_pd(acc1, 1);
+        __m128d sum = _mm_add_pd(low, high);
+        sum = _mm_add_sd(sum, _mm_unpackhi_pd(sum, sum));
+        dsum = _mm_cvtsd_f64(sum);
+      }
+      else if (j >= 4) { /* len of 4 to 7 */
+        __m256d acc = _mm256_fmadd_pd(_mm256_loadu_pd(p_mu), _mm256_loadu_pd(p_r), _mm256_setzero_pd());
+        __m128d low = _mm256_castpd256_pd128(acc);
+        __m128d high = _mm256_extractf128_pd(acc, 1);
+        __m128d sum = _mm_add_pd(low, high);
+        sum = _mm_add_sd(sum, _mm_unpackhi_pd(sum, sum));
+        dsum = _mm_cvtsd_f64(sum);
+        k = 4;
+      }
+      /* len of 1 to 3 */
+      for (; k < j; k++) {
+        dsum += p_mu[k] * p_r[k];
+      }
+    }
+    r(i, j) = ftmp1.get_d() - dsum;
+    if (i > j) {
+      mu(i, j).div(r(i, j), r(j, j));
+      if (!mu(i, j).is_finite())
+        return false;
+    }
+  }
+  gso_valid_cols[i] = j;  // = max(0, gso_valid_cols[i], last_j + 1)
+  // FPLLL_TRACE_OUT("End of GSO update");
+  return true;
+}
+#endif
+
 template <class ZT, class FT> void MatGSOInterface<ZT, FT>::lock_cols() { cols_locked = true; }
 
 template <class ZT, class FT> void MatGSOInterface<ZT, FT>::unlock_cols()

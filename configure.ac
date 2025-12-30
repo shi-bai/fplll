@@ -157,6 +157,25 @@ AX_PTHREAD()
 
 CHECK_ATOMIC()
 
+# Checks for avx2 and fma
+AX_CHECK_COMPILE_FLAG([-mavx2], [
+    AVX2_CXXFLAGS="-mavx2"
+    AC_DEFINE([HAVE_AVX2], [1], [Define if AVX2 is supported])
+], [
+    AVX2_CXXFLAGS=""
+    AC_MSG_WARN([AVX2 instructions not supported by the compiler])
+])
+AX_CHECK_COMPILE_FLAG([-mfma], [
+    FMA_CXXFLAGS="-mfma"
+    AC_DEFINE([HAVE_FMA], [1], [Define if FMA is supported])
+], [
+    FMA_CXXFLAGS=""
+    AC_MSG_WARN([FMA instructions not supported by the compiler])
+])
+CXXFLAGS="$CXXFLAGS $AVX2_CXXFLAGS $FMA_CXXFLAGS"
+AC_SUBST([AVX2_CXXFLAGS])
+AC_SUBST([FMA_CXXFLAGS])
+
 # enumeration dimension
 max_enum_dim=256
 
@@ -223,5 +242,6 @@ AC_CONFIG_FILES([Makefile
                  fplll/Makefile
                  tests/Makefile
                  fplll.pc])
+
 AC_OUTPUT
 

@@ -20,6 +20,9 @@
 #define FPLLL_GSOInterface_H
 
 #include "nr/matrix.h"
+#if defined(__AVX2__)
+#include <immintrin.h>
+#endif
 
 FPLLL_BEGIN_NAMESPACE
 

@@ -88,7 +88,7 @@ libfplll_la_SOURCES=fplll.cpp fplll.h \
 	householder.cpp householder.h hlll.cpp hlll.h \
 	io/json.hpp \
 	threadpool.h threadpool.cpp io/thread_pool.hpp
-libfplll_la_CXXFLAGS=$(PTHREAD_CFLAGS)
+libfplll_la_CXXFLAGS = $(PTHREAD_CFLAGS) $(AVX2_CXXFLAGS) $(FMA_CXXFLAGS)
 
 EXTRA_libfplll_la_SOURCES= svpcvp.cpp
 libfplll_la_LIBADD=$(LIBQD_LIBS) $(PTHREAD_LIBS) $(EXTENUM_LIBS)
