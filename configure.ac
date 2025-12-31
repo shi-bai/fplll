@@ -140,6 +140,45 @@ AS_IF([test "x${have_libqd}" = "xyes"], [
 # the AC_SEARCH_LIBS macro works.
 AC_SUBST(LIBQD_LIBS)
 
+# Checks for avx2 and fma
+AC_ARG_ENABLE(avx2,
+        AS_HELP_STRING([--disable-avx2],
+         [Disable AVX2 optimizations]))
+
+AC_ARG_ENABLE(fma,
+        AS_HELP_STRING([--disable-fma],
+         [Disable FMA optimizations]))
+
+AS_IF([test "x$enable_avx2" != "xno"], [
+    AX_CHECK_COMPILE_FLAG([-mavx2], [
+        AVX2_CXXFLAGS="-mavx2"
+        AC_DEFINE([HAVE_AVX2], [1], [Define if AVX2 is supported])
+    ], [
+        AVX2_CXXFLAGS=""
+        AC_MSG_WARN([AVX2 instructions not supported by the compiler])
+    ])
+], [
+    AVX2_CXXFLAGS=""
+    AC_MSG_NOTICE([AVX2 explicitly disabled])
+])
+
+AS_IF([test "x$enable_fma" != "xno"], [
+    AX_CHECK_COMPILE_FLAG([-mfma], [
+        FMA_CXXFLAGS="-mfma"
+        AC_DEFINE([HAVE_FMA], [1], [Define if FMA is supported])
+    ], [
+        FMA_CXXFLAGS=""
+        AC_MSG_WARN([FMA instructions not supported by the compiler])
+    ])
+], [
+    FMA_CXXFLAGS=""
+    AC_MSG_NOTICE([FMA explicitly disabled])
+])
+
+CXXFLAGS="$CXXFLAGS $AVX2_CXXFLAGS $FMA_CXXFLAGS"
+AC_SUBST([AVX2_CXXFLAGS])
+AC_SUBST([FMA_CXXFLAGS])
+
 AC_CHECK_HEADERS([limits.h cstdio iostream string limits vector])
 
 # Checks for typedefs, structures, and compiler characteristics.
@@ -156,25 +195,6 @@ AC_CHECK_FUNCS([floor pow rint sqrt strtol])
 AX_PTHREAD()
 
 CHECK_ATOMIC()
-
-# Checks for avx2 and fma
-AX_CHECK_COMPILE_FLAG([-mavx2], [
-    AVX2_CXXFLAGS="-mavx2"
-    AC_DEFINE([HAVE_AVX2], [1], [Define if AVX2 is supported])
-], [
-    AVX2_CXXFLAGS=""
-    AC_MSG_WARN([AVX2 instructions not supported by the compiler])
-])
-AX_CHECK_COMPILE_FLAG([-mfma], [
-    FMA_CXXFLAGS="-mfma"
-    AC_DEFINE([HAVE_FMA], [1], [Define if FMA is supported])
-], [
-    FMA_CXXFLAGS=""
-    AC_MSG_WARN([FMA instructions not supported by the compiler])
-])
-CXXFLAGS="$CXXFLAGS $AVX2_CXXFLAGS $FMA_CXXFLAGS"
-AC_SUBST([AVX2_CXXFLAGS])
-AC_SUBST([FMA_CXXFLAGS])
 
 # enumeration dimension
 max_enum_dim=256
