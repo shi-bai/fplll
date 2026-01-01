@@ -233,6 +233,49 @@ inline bool MatGSOInterface<Z_NR<long>, FP_NR<double>>::update_gso_row(int i, in
 }
 #endif
 
+
+template <>
+inline bool MatGSOInterface<Z_NR<long>, FP_NR<dd_real>>::update_gso_row(int i, int last_j)
+{
+    if (i >= n_known_rows) discover_row();
+    int j = max(0, gso_valid_cols[i]);
+    for (; j <= last_j; j++)
+    {
+        get_gram(ftmp1, i, j); // Initial value for r(i,j)
+        if (j > 0)
+        {
+            // Direct pointers to the dd_real data
+            const dd_real* p_mu = reinterpret_cast<const dd_real*>(&mu[j][0]);
+            const dd_real* p_r  = reinterpret_cast<const dd_real*>(&r[i][0]);
+            // 4 accumulators to hide dd_real multiplication latency (~20 cycles)
+            dd_real acc0 = 0.0, acc1 = 0.0, acc2 = 0.0, acc3 = 0.0;
+            int k = 0;
+            for (; k <= j - 4; k += 4) {
+                acc0 += p_mu[k]   * p_r[k];
+                acc1 += p_mu[k+1] * p_r[k+1];
+                acc2 += p_mu[k+2] * p_r[k+2];
+                acc3 += p_mu[k+3] * p_r[k+3];
+            }
+            for (; k < j; k++) {
+                acc0 += p_mu[k] * p_r[k];
+            }
+
+            // Subtract the accumulated dot product from ftmp1 (the Gram value)
+            dd_real dot = (acc0 + acc1) + (acc2 + acc3);
+            ftmp1.get_data() -= dot;
+        }
+        r(i, j) = ftmp1;
+        if (i > j)
+        {
+            mu(i, j).div(r(i, j), r(j, j));
+            if (!mu(i, j).is_finite()) return false;
+        }
+    }
+    gso_valid_cols[i] = j;
+    return true;
+}
+
+
 template <class ZT, class FT> void MatGSOInterface<ZT, FT>::lock_cols() { cols_locked = true; }
 
 template <class ZT, class FT> void MatGSOInterface<ZT, FT>::unlock_cols()

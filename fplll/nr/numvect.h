@@ -534,6 +534,34 @@ template <> inline void NumVect<Z_NR<long>>::addmul(const NumVect<Z_NR<long>> &v
 }
 #endif
 
+/** Specialized addmul for dd_real (data = data + v * x) **/
+template <>
+inline void NumVect<FP_NR<dd_real>>::addmul(const NumVect<FP_NR<dd_real>> &v, 
+                                            FP_NR<dd_real> x, int beg, int n)
+{
+  int count = n - beg;
+  if (count <= 0) return;
+
+  dd_real factor = x.get_data();
+  // Use __restrict to tell the compiler these pointers don't alias
+  dd_real* __restrict p_dst = reinterpret_cast<dd_real*>(&data[beg]);
+  const dd_real* __restrict p_src = reinterpret_cast<const dd_real*>(&v.data[beg]);
+
+  int i = 0;
+  // 4-way unrolling often beats 2-way for addmul on modern CPUs
+  // because it hides the latency of the dd_real multiplication (which is ~20+ cycles)
+  for (; i <= count - 4; i += 4) {
+    p_dst[i]   += p_src[i]   * factor;
+    p_dst[i+1] += p_src[i+1] * factor;
+    p_dst[i+2] += p_src[i+2] * factor;
+    p_dst[i+3] += p_src[i+3] * factor;
+  }
+
+  for (; i < count; i++) {
+    p_dst[i] += p_src[i] * factor;
+  }    
+}
+
 template <class T>
 void NumVect<T>::addmul_2exp(const NumVect<T> &v, const T &x, long expo, int n, T &tmp)
 {
@@ -791,6 +819,60 @@ inline void dot_product<fplll::FP_NR<double>>(fplll::FP_NR<double> &result,
   dot_product<fplll::FP_NR<double>>(result, v1, v2, 0, v1.size());
 }
 #endif
+
+
+template <>
+inline void dot_product<FP_NR<dd_real>>(FP_NR<dd_real> &result,
+                                        const NumVect<FP_NR<dd_real>> &v1,
+                                        const NumVect<FP_NR<dd_real>> &v2,
+                                        int beg, int n)
+{
+    const int count = n - beg;
+    if (count <= 0) { result = 0.0; return; }
+
+    // Use the raw pointer to avoid the FP_NR wrapper overhead
+    const dd_real* __restrict__ p1 = reinterpret_cast<const dd_real*>(&v1[beg]);
+    const dd_real* __restrict__ p2 = reinterpret_cast<const dd_real*>(&v2[beg]);
+
+    dd_real s0 = 0.0, s1 = 0.0, s2 = 0.0, s3 = 0.0;
+    int i = 0;
+
+    // Use 4 accumulators to overlap the math with the 8,003ms memory bottleneck
+    for (; i <= count - 4; i += 4) {
+        s0 += p1[i]   * p2[i];
+        s1 += p1[i+1] * p2[i+1];
+        s2 += p1[i+2] * p2[i+2];
+        s3 += p1[i+3] * p2[i+3];
+    }
+
+    for (; i < count; ++i) {
+        s0 += p1[i] * p2[i];
+    }
+
+    result.get_data() = (s0 + s1) + (s2 + s3);
+}
+
+
+
+
+// Add the 1-argument and 2-argument wrappers for dd_real to match your double logic
+template <>
+inline void dot_product<FP_NR<dd_real>>(FP_NR<dd_real> &result,
+                                        const NumVect<FP_NR<dd_real>> &v1,
+                                        const NumVect<FP_NR<dd_real>> &v2,
+                                        int n)
+{
+  dot_product<FP_NR<dd_real>>(result, v1, v2, 0, n);
+}
+
+template <>
+inline void dot_product<FP_NR<dd_real>>(FP_NR<dd_real> &result,
+                                        const NumVect<FP_NR<dd_real>> &v1,
+                                        const NumVect<FP_NR<dd_real>> &v2)
+{
+  dot_product<FP_NR<dd_real>>(result, v1, v2, 0, v1.size());
+}
+
 
 
 template <class T> inline void squared_norm(T &result, const NumVect<T> &v)

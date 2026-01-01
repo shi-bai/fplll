@@ -189,14 +189,14 @@ template <>
 inline void FP_NR<dd_real>::addmul(const FP_NR<dd_real> &b, const FP_NR<dd_real> &c,
                                    mp_rnd_t /*rnd*/)
 {
-  data = data + b.data * c.data;
+  data += b.data * c.data; // Compiler can optimize this into a fused operation
 }
 
 template <>
 inline void FP_NR<dd_real>::submul(const FP_NR<dd_real> &b, const FP_NR<dd_real> &c,
                                    mp_rnd_t /*rnd*/)
 {
-  data = data - b.data * c.data;
+  data -= b.data * c.data; // Compiler can optimize this into a fused operation
 }
 
 template <> inline void FP_NR<dd_real>::pow_si(const FP_NR<dd_real> &a, long b, mp_rnd_t /*rnd*/)
