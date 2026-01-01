@@ -534,6 +534,7 @@ template <> inline void NumVect<Z_NR<long>>::addmul(const NumVect<Z_NR<long>> &v
 }
 #endif
 
+#ifdef FPLLL_WITH_QD
 /** Specialized addmul for dd_real (data = data + v * x) **/
 template <>
 inline void NumVect<FP_NR<dd_real>>::addmul(const NumVect<FP_NR<dd_real>> &v, 
@@ -561,6 +562,7 @@ inline void NumVect<FP_NR<dd_real>>::addmul(const NumVect<FP_NR<dd_real>> &v,
     p_dst[i] += p_src[i] * factor;
   }    
 }
+#endif
 
 template <class T>
 void NumVect<T>::addmul_2exp(const NumVect<T> &v, const T &x, long expo, int n, T &tmp)
@@ -820,7 +822,7 @@ inline void dot_product<fplll::FP_NR<double>>(fplll::FP_NR<double> &result,
 }
 #endif
 
-
+#ifdef FPLLL_WITH_QD
 template <>
 inline void dot_product<FP_NR<dd_real>>(FP_NR<dd_real> &result,
                                         const NumVect<FP_NR<dd_real>> &v1,
@@ -852,9 +854,6 @@ inline void dot_product<FP_NR<dd_real>>(FP_NR<dd_real> &result,
     result.get_data() = (s0 + s1) + (s2 + s3);
 }
 
-
-
-
 // Add the 1-argument and 2-argument wrappers for dd_real to match your double logic
 template <>
 inline void dot_product<FP_NR<dd_real>>(FP_NR<dd_real> &result,
@@ -872,6 +871,7 @@ inline void dot_product<FP_NR<dd_real>>(FP_NR<dd_real> &result,
 {
   dot_product<FP_NR<dd_real>>(result, v1, v2, 0, v1.size());
 }
+#endif
 
 
 

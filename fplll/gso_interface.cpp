@@ -234,6 +234,7 @@ inline bool MatGSOInterface<Z_NR<long>, FP_NR<double>>::update_gso_row(int i, in
 #endif
 
 
+#ifdef FPLLL_WITH_QD
 template <>
 inline bool MatGSOInterface<Z_NR<long>, FP_NR<dd_real>>::update_gso_row(int i, int last_j)
 {
@@ -274,7 +275,7 @@ inline bool MatGSOInterface<Z_NR<long>, FP_NR<dd_real>>::update_gso_row(int i, i
     gso_valid_cols[i] = j;
     return true;
 }
-
+#endif
 
 template <class ZT, class FT> void MatGSOInterface<ZT, FT>::lock_cols() { cols_locked = true; }
 
