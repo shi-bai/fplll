@@ -1,5 +1,5 @@
 // Build (GCC / g++):
-// g++ -O3 -march=native -ffast-math test_dot_product.cpp ../fplll/.libs/libfplll.a -lopenblas -lquadmath -lqd -o bench && ./bench
+// g++ -O3 -march=native test_dot_product.cpp ../fplll/.libs/libfplll.a -lopenblas -lquadmath -lqd -o bench && ./bench
 //
 // Notes:
 // - __float128 requires <quadmath.h> and linking with -lquadmath.
@@ -7,6 +7,9 @@
 // - dd_real is from the QD library (double-double). We explicitly add tiny "low parts"
 //   to force true dd precision to matter, and we use DoNotOptimize/ClobberMemory so the
 //   compiler cannot eliminate/rewrite the benchmarked work.
+
+
+#include "../fplll/fplll.h" // very important own version!!
 
 #include <iostream>
 #include <vector>
@@ -16,9 +19,10 @@
 #include <limits>
 #include <iomanip>
 #include <sstream>
+#include "src_cpu/multi_prec.h" // Ensure this path is correct relative to
+                        // your build
 
 #include <qd/dd_real.h>
-#include <fplll/fplll.h>
 
 #if defined(__AVX2__) && defined(__FMA__)
   #include <immintrin.h>
@@ -27,8 +31,11 @@
 #include <cblas.h>
 #include <quadmath.h>
 
-using namespace fplll;
+typedef multi_prec<2> camp_dd;
 using clk = std::chrono::high_resolution_clock;
+
+using namespace fplll;
+
 
 // -------------------- "do-not-eliminate" helpers --------------------
 #if defined(__GNUC__) || defined(__clang__)
@@ -54,7 +61,8 @@ static double sink = 0.0;
 static long double sink_ld = 0.0L;
 static __float128 sink_q = 0;
 static dd_real sink_dd = 0.0;
-
+// A custom sink for the new type
+static camp_dd sink_cdd; // Default constructor sets it to zero
 // ============================================================
 // double dot products
 // ============================================================
@@ -105,15 +113,18 @@ inline double dot_openblas(const double* a, const double* b, int n)
     return cblas_ddot(n, a, 1, b, 1);
 }
 
-// fplll FP_NR<double>
-inline double dot_fplll_double(const NumVect<FP_NR<double>>& a,
-                               const NumVect<FP_NR<double>>& b,
+
+inline double dot_fplll_double(const fplll::NumVect<fplll::FP_NR<double>>& a,
+                               const fplll::NumVect<fplll::FP_NR<double>>& b,
                                int n)
 {
-    FP_NR<double> r;
-    dot_product(r, a, b, 0, n);
+    fplll::FP_NR<double> r;
+    // Explicitly request the specialized double version
+    fplll::dot_product<fplll::FP_NR<double>>(r, a, b, 0, n);    
     return r.get_d();
 }
+
+
 
 // ============================================================
 // long double (plain, plus ILP4 version)
@@ -189,6 +200,35 @@ inline __float128 dot_plain_scalar_q_ilp4(const __float128* a, const __float128*
         s3 += a[i + 3] * b[i + 3];
     }
     for (; i < n; ++i) s0 += a[i] * b[i];
+    return (s0 + s1) + (s2 + s3);
+}
+
+
+// Scalar version for CAMPARY
+inline camp_dd dot_plain_scalar_cdd(const camp_dd* a, const camp_dd* b, int n)
+{
+    camp_dd s; 
+    s = 0.0; // Most multi_prec versions support assignment from double
+    for (int i = 0; i < n; ++i) {
+        // Use the explicit multiply-accumulate if operators aren't loaded
+        // Logic: s = s + (a[i] * b[i])
+        s = s + (a[i] * b[i]); 
+    }
+    return s;
+}
+
+// ILP4 version for CAMPARY to check if instruction parallelism helps
+inline camp_dd dot_plain_scalar_cdd_ilp4(const camp_dd* a, const camp_dd* b, int n)
+{
+    camp_dd s0(0.0), s1(0.0), s2(0.0), s3(0.0);
+    int i = 0;
+    for (; i <= n - 4; i += 4) {
+        s0 = s0 + (a[i+0] * b[i+0]);
+        s1 = s1 + (a[i+1] * b[i+1]);
+        s2 = s2 + (a[i+2] * b[i+2]);
+        s3 = s3 + (a[i+3] * b[i+3]);
+    }
+    for (; i < n; ++i) s0 = s0 + (a[i] * b[i]);
     return (s0 + s1) + (s2 + s3);
 }
 
@@ -324,6 +364,39 @@ double bench_dd_real(const char* name, F&& fn, int R)
     return ns;
 }
 
+
+template <class F>
+double bench_cdd_real(const char* name, F&& fn, int R)
+{
+    // Warmup
+    for (int i = 0; i < 200; ++i) {
+        camp_dd x = fn();
+        DoNotOptimize(x);
+        sink_cdd = sink_cdd + x;
+    }
+    ClobberMemory();
+
+    auto t0 = clk::now();
+    camp_dd acc(0.0);
+
+    for (int r = 0; r < R; ++r) {
+        camp_dd x = fn();
+        DoNotOptimize(x); // Prevents skipping the logic
+        acc = acc + x;
+    }
+
+    sink_cdd = sink_cdd + acc;
+    DoNotOptimize(sink_cdd);
+    ClobberMemory();
+
+    auto t1 = clk::now();
+    double sec = std::chrono::duration<double>(t1 - t0).count();
+    double ns = (sec * 1e9) / R;
+    std::cout << "  " << name << " : " << ns << " ns/call\n";
+    return ns;
+}
+
+
 // helper to print __float128
 static void print_q(const char* label, __float128 x)
 {
@@ -385,6 +458,14 @@ int main()
         b_dd[i] = dd_real(bhi, blo);
     }
 
+// In main():
+    std::vector<camp_dd> a_cdd(N), b_cdd(N);
+    for (int i = 0; i < N; ++i) {
+      // Correct initialization for CAMPARY: High part + Low part
+      a_cdd[i] = camp_dd(a[i]) + ((i & 1) ? 1e-30 : -1e-30);
+      b_cdd[i] = camp_dd(b[i]) + ((i & 2) ? 1e-30 : -1e-30);
+    }
+    
     // -------------------- correctness check --------------------
     {
         IosFormatGuard g(std::cout);
@@ -421,6 +502,8 @@ int main()
         std::cout << "  scalar(dd_real)            = " << ref_dd  << "\n";
         std::cout << "  scalar(dd_real ilp4)       = " << ref_dd4 << "\n";
         std::cout << "  dd_real - double(dot)      = " << dd_diff << "  (should be non-zero)\n";
+
+        
     }
 
     // -------------------- timings --------------------
@@ -472,9 +555,19 @@ int main()
     DoNotOptimize(a_dd[0]);   // <-- here
     DoNotOptimize(b_dd[0]);   // <-- here
       
-        return dot_plain_scalar_dd_ilp4(a_dd.data(), b_dd.data(), N);
+    return dot_plain_scalar_dd_ilp4(a_dd.data(), b_dd.data(), N);
     }, R);
 
+
+// Timing calls:
+    double ns_cdd = bench_cdd_real("plain scalar (campary cdd)", [&](){
+      return dot_plain_scalar_cdd(a_cdd.data(), b_cdd.data(), N);
+    }, R);
+
+    double ns_cdd4 = bench_cdd_real("plain scalar ILP4 (campary cdd)", [&](){
+      return dot_plain_scalar_cdd_ilp4(a_cdd.data(), b_cdd.data(), N);
+    }, R);
+    
     // -------------------- ratios (polished formatting) --------------------
     {
         IosFormatGuard g(std::cout);
@@ -501,6 +594,11 @@ int main()
         line("plain scalar ILP4 (__float128)", ns_q4, base);
         line("plain scalar (dd_real)", ns_dd, base);
         line("plain scalar ILP4 (dd_real)", ns_dd4, base);
+
+        line("plain scalar (double)", ns_scalar, base);
+        line("plain scalar (dd_real libqd)", ns_dd, base);
+        line("plain scalar (campary cdd)", ns_cdd, base);
+        line("plain scalar ILP4 (campary cdd)", ns_cdd4, base);        
     }
 
     return 0;

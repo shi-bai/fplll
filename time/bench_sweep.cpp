@@ -1,6 +1,5 @@
-// g++ -O3 -march=native -ffast-math bench_sweep.cpp ../fplll/.libs/libfplll.a -lopenblas -o bench_sweep OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 ./bench_sweep
-
-
+// g++ -O3 -march=native bench_sweep.cpp ../fplll/.libs/libfplll.a -lopenblas -o bench_sweep
+//OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 ./bench_sweep
 #include <iostream>
 #include <vector>
 #include <chrono>
@@ -8,7 +7,7 @@
 #include <iomanip>
 #include <cmath>
 
-#include <fplll/fplll.h>
+#include "../fplll/fplll.h" // very important own version!!
 #include <cblas.h>
 
 using namespace fplll;
@@ -21,12 +20,17 @@ inline double dot_openblas(const double* a, const double* b, int n)
     return cblas_ddot(n, a, 1, b, 1);
 }
 
-inline double dot_fplll(const NumVect<FP_NR<double>>& a,
-                        const NumVect<FP_NR<double>>& b,
-                        int n)
+
+inline double dot_fplll(const fplll::NumVect<fplll::FP_NR<double>>& a,
+                               const fplll::NumVect<fplll::FP_NR<double>>& b,
+                               int n)
 {
-    FP_NR<double> r;
-    dot_product(r, a, b, 0, n);
+    fplll::FP_NR<double> r;
+
+    // 1. Use the explicit <fplll::FP_NR<double>> tag
+    // 2. Use the 5-argument version to match your specialization exactly
+    fplll::dot_product<fplll::FP_NR<double>>(r, a, b, 0, n);
+
     return r.get_d();
 }
 
