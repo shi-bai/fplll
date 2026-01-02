@@ -841,53 +841,59 @@ inline void dot_product<FP_NR<dd_real>>(FP_NR<dd_real> &result,
   int i = 0;
   dd_real s_total = 0.0;
 
+
 #if defined(__AVX2__) && defined(__FMA__)
-  // --- AVX2 PATH ---
-  __m256d acc_h = _mm256_setzero_pd();
-  __m256d acc_l = _mm256_setzero_pd();
+  // Two separate double-double accumulators to hide latency
+  __m256d acc0_h = _mm256_setzero_pd();
+  __m256d acc0_l = _mm256_setzero_pd();
+  __m256d acc1_h = _mm256_setzero_pd();
+  __m256d acc1_l = _mm256_setzero_pd();
 
-  for (; i <= count - 4; i += 4) {
-    __m256d a1 = _mm256_loadu_pd((double*)&p1[i]);
-    __m256d a2 = _mm256_loadu_pd((double*)&p1[i + 2]);
-    __m256d v_ah = _mm256_unpacklo_pd(a1, a2); 
-    __m256d v_al = _mm256_unpackhi_pd(a1, a2);
+  for (; i <= count - 8; i += 8) {
+    // Process two sets of 4 dd_reals (8 total per loop)
+    for (int batch = 0; batch < 2; ++batch) {
+      const dd_real* cur_p1 = p1 + i + (batch * 4);
+      const dd_real* cur_p2 = p2 + i + (batch * 4);
 
-    __m256d b1 = _mm256_loadu_pd((double*)&p2[i]);
-    __m256d b2 = _mm256_loadu_pd((double*)&p2[i + 2]);
-    __m256d v_bh = _mm256_unpacklo_pd(b1, b2);
-    __m256d v_bl = _mm256_unpackhi_pd(b1, b2);
+      // Load and Unpack
+      __m256d a1 = _mm256_loadu_pd((double*)cur_p1);
+      __m256d a2 = _mm256_loadu_pd((double*)(cur_p1 + 2));
+      __m256d v_ah = _mm256_unpacklo_pd(a1, a2); 
+      __m256d v_al = _mm256_unpackhi_pd(a1, a2);
 
-    // two_prod
-    __m256d p1_v = _mm256_mul_pd(v_ah, v_bh);
-    __m256d p2_v = _mm256_fmsub_pd(v_ah, v_bh, p1_v); 
-    // cross terms
-    p2_v = _mm256_fmadd_pd(v_ah, v_bl, _mm256_fmadd_pd(v_al, v_bh, p2_v));
+      __m256d b1 = _mm256_loadu_pd((double*)cur_p2);
+      __m256d b2 = _mm256_loadu_pd((double*)(cur_p2 + 2));
+      __m256d v_bh = _mm256_unpacklo_pd(b1, b2);
+      __m256d v_bl = _mm256_unpackhi_pd(b1, b2);
 
-    // acc += p1_v + p2_v
-    __m256d s = _mm256_add_pd(acc_h, p1_v);
-    __m256d tmp = _mm256_sub_pd(s, acc_h);
-    __m256d e = _mm256_add_pd(_mm256_sub_pd(acc_h, _mm256_sub_pd(s, tmp)), _mm256_sub_pd(p1_v, tmp));
-    e = _mm256_add_pd(e, _mm256_add_pd(acc_l, p2_v));
+      // --- Two-Prod ---
+      __m256d p1_v = _mm256_mul_pd(v_ah, v_bh);
+      __m256d p2_v = _mm256_fmsub_pd(v_ah, v_bh, p1_v);
+      p2_v = _mm256_fmadd_pd(v_ah, v_bl, _mm256_fmadd_pd(v_al, v_bh, p2_v));
+
+      // --- Two-Sum Accumulation ---
+      __m256d& r_h = (batch == 0) ? acc0_h : acc1_h;
+      __m256d& r_l = (batch == 0) ? acc0_l : acc1_l;
+
+      __m256d s = _mm256_add_pd(r_h, p1_v);
+      __m256d tmp = _mm256_sub_pd(s, r_h);
+      __m256d e = _mm256_add_pd(_mm256_sub_pd(r_h, _mm256_sub_pd(s, tmp)), _mm256_sub_pd(p1_v, tmp));
+      e = _mm256_add_pd(e, _mm256_add_pd(r_l, p2_v));
         
-    acc_h = _mm256_add_pd(s, e);
-    acc_l = _mm256_sub_pd(e, _mm256_sub_pd(acc_h, s));
+      r_h = _mm256_add_pd(s, e);
+      r_l = _mm256_sub_pd(e, _mm256_sub_pd(r_h, s));
+    }
   }
 
-  double res_h[4], res_l[4];
-  _mm256_storeu_pd(res_h, acc_h);
-  _mm256_storeu_pd(res_l, acc_l);
-  for (int j = 0; j < 4; ++j) s_total += dd_real(res_h[j], res_l[j]);
-
-#else
-  // --- SCALAR FALLBACK (Optimized with 4 accumulators) ---
-  dd_real s0 = 0.0, s1 = 0.0, s2 = 0.0, s3 = 0.0;
-  for (; i <= count - 4; i += 4) {
-    s0 += p1[i]   * p2[i];
-    s1 += p1[i+1] * p2[i+1];
-    s2 += p1[i+2] * p2[i+2];
-    s3 += p1[i+3] * p2[i+3];
-  }
-  s_total = (s0 + s1) + (s2 + s3);
+  // Reduction of the two SIMD accumulators
+  double rh0[4], rl0[4], rh1[4], rl1[4];
+  _mm256_storeu_pd(rh0, acc0_h); _mm256_storeu_pd(rl0, acc0_l);
+  _mm256_storeu_pd(rh1, acc1_h); _mm256_storeu_pd(rl1, acc1_l);
+  
+  for (int j = 0; j < 4; ++j) {
+    s_total += dd_real(rh0[j], rl0[j]);
+    s_total += dd_real(rh1[j], rl1[j]);
+  }  
 #endif
 
   // --- REMAINDER LOOP (Shared) ---
