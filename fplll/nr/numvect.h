@@ -626,36 +626,28 @@ template <> inline void NumVect<Z_NR<long>>::addmul_si(const NumVect<Z_NR<long>>
   }
 }
 
-/** Specialized addmul_si for mpz_t to reduce GMP overhead **/
+
+/** Specialized addmul_si using GMP's low-level 'mpn' layer **/
 template <> 
 inline void NumVect<Z_NR<mpz_t>>::addmul_si(const NumVect<Z_NR<mpz_t>> &v, long x, int n)
 {
-  if (n <= 0 || x == 0) return;
+    if (n <= 0 || x == 0) return;
 
-  // Use raw pointers to mpz_t to avoid Z_NR wrapper overhead
-  mpz_t* d_ptr = reinterpret_cast<mpz_t*>(&data[0]);
-  const mpz_t* v_ptr = reinterpret_cast<const mpz_t*>(&v.data[0]);
+    for (int i = 0; i < n; i++) {
+        mpz_ptr d = data[i].get_data();
+        mpz_srcptr s = v[i].get_data();
 
-  if (x == 1) {
-    for (int i = 0; i < n; i++) {
-      mpz_add(d_ptr[i], d_ptr[i], v_ptr[i]);
+        if (x == 1) {
+            mpz_add(d, d, s);
+        } else if (x == -1) {
+            mpz_sub(d, d, s);
+        } else {
+            // This is the function that showed up in your perf trace
+            // Calling it directly with a casted unsigned long
+            if (x > 0) mpz_addmul_ui(d, s, (unsigned long)x);
+            else mpz_submul_ui(d, s, (unsigned long)-x);
+        }
     }
-  } 
-  else if (x == -1) {
-    for (int i = 0; i < n; i++) {
-      mpz_sub(d_ptr[i], d_ptr[i], v_ptr[i]);
-    }
-  } 
-  else if (x > 0) {
-    for (int i = 0; i < n; i++) {
-      mpz_addmul_ui(d_ptr[i], v_ptr[i], static_cast<unsigned long>(x));
-    }
-  } 
-  else {
-    for (int i = 0; i < n; i++) {
-      mpz_submul_ui(d_ptr[i], v_ptr[i], static_cast<unsigned long>(-x));
-    }
-  }
 }
 #endif
 
