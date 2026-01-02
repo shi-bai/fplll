@@ -1,7 +1,7 @@
-// Standalone benchmark: double vs QD dd_real for scalar add/mul/fma-like and dot-product.
+// compare dd/double array type dot product
 //
 // Build:
-//    g++ -O3 -march=native -std=c++17 -fno-omit-frame-pointer -DNDEBUG test_dd.cpp -lqd -o test_dd
+//   g++ -O3 -march=native -DNDEBUG test_ptr_dd.cpp -lqd -o test_ptr_dd
 /**
 Scalar ops (Dependency chain via DoNotOptimize)
   double add                            2.85 ns/iter

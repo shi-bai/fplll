@@ -1,4 +1,5 @@
-// Build with: g++ -O3 -march=native -std=c++17 -DNDEBUG test_vector.cpp -lqd -lfplll -o test_vector
+// compare different vector types -- conclusion: no slow down Numvect wrapper
+// Build with: g++ -O3 -march=native test_vector.cpp -lqd -lfplll -o test_vector
 /**
 Optimized Benchmarking (AVX2/FMA allowed)
 sizeof(dd_real) = 16

@@ -822,39 +822,82 @@ inline void dot_product<fplll::FP_NR<double>>(fplll::FP_NR<double> &result,
 }
 #endif
 
+
+
 #ifdef FPLLL_WITH_QD
+
+// --- Core Implementation (AVX2 or Scalar) ---
 template <>
 inline void dot_product<FP_NR<dd_real>>(FP_NR<dd_real> &result,
                                         const NumVect<FP_NR<dd_real>> &v1,
                                         const NumVect<FP_NR<dd_real>> &v2,
                                         int beg, int n)
 {
-    const int count = n - beg;
-    if (count <= 0) { result = 0.0; return; }
+  const int count = n - beg;
+  if (count <= 0) { result = 0.0; return; }
 
-    // Use the raw pointer to avoid the FP_NR wrapper overhead
-    const dd_real* __restrict__ p1 = reinterpret_cast<const dd_real*>(&v1[beg]);
-    const dd_real* __restrict__ p2 = reinterpret_cast<const dd_real*>(&v2[beg]);
+  const dd_real* __restrict__ p1 = reinterpret_cast<const dd_real*>(&v1[beg]);
+  const dd_real* __restrict__ p2 = reinterpret_cast<const dd_real*>(&v2[beg]);
+  int i = 0;
+  dd_real s_total = 0.0;
 
-    dd_real s0 = 0.0, s1 = 0.0, s2 = 0.0, s3 = 0.0;
-    int i = 0;
+#if defined(__AVX2__) && defined(__FMA__)
+  // --- AVX2 PATH ---
+  __m256d acc_h = _mm256_setzero_pd();
+  __m256d acc_l = _mm256_setzero_pd();
 
-    // Use 4 accumulators to overlap the math with the 8,003ms memory bottleneck
-    for (; i <= count - 4; i += 4) {
-        s0 += p1[i]   * p2[i];
-        s1 += p1[i+1] * p2[i+1];
-        s2 += p1[i+2] * p2[i+2];
-        s3 += p1[i+3] * p2[i+3];
-    }
+  for (; i <= count - 4; i += 4) {
+    __m256d a1 = _mm256_loadu_pd((double*)&p1[i]);
+    __m256d a2 = _mm256_loadu_pd((double*)&p1[i + 2]);
+    __m256d v_ah = _mm256_unpacklo_pd(a1, a2); 
+    __m256d v_al = _mm256_unpackhi_pd(a1, a2);
 
-    for (; i < count; ++i) {
-        s0 += p1[i] * p2[i];
-    }
+    __m256d b1 = _mm256_loadu_pd((double*)&p2[i]);
+    __m256d b2 = _mm256_loadu_pd((double*)&p2[i + 2]);
+    __m256d v_bh = _mm256_unpacklo_pd(b1, b2);
+    __m256d v_bl = _mm256_unpackhi_pd(b1, b2);
 
-    result.get_data() = (s0 + s1) + (s2 + s3);
+    // two_prod
+    __m256d p1_v = _mm256_mul_pd(v_ah, v_bh);
+    __m256d p2_v = _mm256_fmsub_pd(v_ah, v_bh, p1_v); 
+    // cross terms
+    p2_v = _mm256_fmadd_pd(v_ah, v_bl, _mm256_fmadd_pd(v_al, v_bh, p2_v));
+
+    // acc += p1_v + p2_v
+    __m256d s = _mm256_add_pd(acc_h, p1_v);
+    __m256d tmp = _mm256_sub_pd(s, acc_h);
+    __m256d e = _mm256_add_pd(_mm256_sub_pd(acc_h, _mm256_sub_pd(s, tmp)), _mm256_sub_pd(p1_v, tmp));
+    e = _mm256_add_pd(e, _mm256_add_pd(acc_l, p2_v));
+        
+    acc_h = _mm256_add_pd(s, e);
+    acc_l = _mm256_sub_pd(e, _mm256_sub_pd(acc_h, s));
+  }
+
+  double res_h[4], res_l[4];
+  _mm256_storeu_pd(res_h, acc_h);
+  _mm256_storeu_pd(res_l, acc_l);
+  for (int j = 0; j < 4; ++j) s_total += dd_real(res_h[j], res_l[j]);
+
+#else
+  // --- SCALAR FALLBACK (Optimized with 4 accumulators) ---
+  dd_real s0 = 0.0, s1 = 0.0, s2 = 0.0, s3 = 0.0;
+  for (; i <= count - 4; i += 4) {
+    s0 += p1[i]   * p2[i];
+    s1 += p1[i+1] * p2[i+1];
+    s2 += p1[i+2] * p2[i+2];
+    s3 += p1[i+3] * p2[i+3];
+  }
+  s_total = (s0 + s1) + (s2 + s3);
+#endif
+
+  // --- REMAINDER LOOP (Shared) ---
+  for (; i < count; ++i) {
+    s_total += p1[i] * p2[i];
+  }
+  result.get_data() = s_total;
 }
 
-// Add the 1-argument and 2-argument wrappers for dd_real to match your double logic
+// --- Wrappers ---
 template <>
 inline void dot_product<FP_NR<dd_real>>(FP_NR<dd_real> &result,
                                         const NumVect<FP_NR<dd_real>> &v1,
@@ -871,9 +914,8 @@ inline void dot_product<FP_NR<dd_real>>(FP_NR<dd_real> &result,
 {
   dot_product<FP_NR<dd_real>>(result, v1, v2, 0, v1.size());
 }
+
 #endif
-
-
 
 template <class T> inline void squared_norm(T &result, const NumVect<T> &v)
 {
