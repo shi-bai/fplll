@@ -610,15 +610,51 @@ template <> inline void NumVect<Z_NR<long>>::addmul_si(const NumVect<Z_NR<long>>
     }
     else {
       for (; i <= n - 4; i += 4) {
-        dpt[i] += vpt[i] * x;
+        __m256i t_v = _mm256_loadu_si256((__m256i*)(vpt + i));
+        __m256i t_d = _mm256_loadu_si256((__m256i*)(dpt + i));
+        // Note: _mm256_mul_epi32 only does 32-bit. 
+        // For 64-bit x 64-bit, standard C++ is often better unless you have AVX-512.
+        dpt[i] += vpt[i] * x; 
         dpt[i+1] += vpt[i+1] * x;
         dpt[i+2] += vpt[i+2] * x;
-        dpt[i+3] += vpt[i+3] * x;
+        dpt[i+3] += vpt[i+3] * x;        
       }
     }
   }
   for (; i < n; i++) {
     dpt[i] += vpt[i] * x;
+  }
+}
+
+/** Specialized addmul_si for mpz_t to reduce GMP overhead **/
+template <> 
+inline void NumVect<Z_NR<mpz_t>>::addmul_si(const NumVect<Z_NR<mpz_t>> &v, long x, int n)
+{
+  if (n <= 0 || x == 0) return;
+
+  // Use raw pointers to mpz_t to avoid Z_NR wrapper overhead
+  mpz_t* d_ptr = reinterpret_cast<mpz_t*>(&data[0]);
+  const mpz_t* v_ptr = reinterpret_cast<const mpz_t*>(&v.data[0]);
+
+  if (x == 1) {
+    for (int i = 0; i < n; i++) {
+      mpz_add(d_ptr[i], d_ptr[i], v_ptr[i]);
+    }
+  } 
+  else if (x == -1) {
+    for (int i = 0; i < n; i++) {
+      mpz_sub(d_ptr[i], d_ptr[i], v_ptr[i]);
+    }
+  } 
+  else if (x > 0) {
+    for (int i = 0; i < n; i++) {
+      mpz_addmul_ui(d_ptr[i], v_ptr[i], static_cast<unsigned long>(x));
+    }
+  } 
+  else {
+    for (int i = 0; i < n; i++) {
+      mpz_submul_ui(d_ptr[i], v_ptr[i], static_cast<unsigned long>(-x));
+    }
   }
 }
 #endif
